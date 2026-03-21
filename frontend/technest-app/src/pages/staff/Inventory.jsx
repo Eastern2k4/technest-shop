@@ -52,7 +52,7 @@ export default function StaffInventory() {
       name: product.name || '',
       price: product.price || '',
       quantity: product.quantity || 0,
-      imageUrl: product.imageUrl || product.image || '',
+      imageUrl: product.imageUrl || '',
       categoryId: product.categoryId || '',
       descriptionShort: product.descriptionShort || '',
       descriptionLong: product.descriptionLong || ''
@@ -93,8 +93,6 @@ export default function StaffInventory() {
         imageUrl: editForm.imageUrl.trim() || '',
         categoryId: editForm.categoryId ? parseInt(editForm.categoryId) : product.categoryId,
         quantity: quantity,
-        image: editForm.imageUrl.trim() || '',
-        specs: editForm.descriptionShort.trim() || '',
         descriptionShort: editForm.descriptionShort.trim() || '',
         descriptionLong: editForm.descriptionLong.trim() || ''
       }
@@ -173,7 +171,7 @@ export default function StaffInventory() {
                 </tr>
               ) : (
                 products.map((p) => {
-                  const imageUrl = p.image || p.imageUrl || ''
+                  const imageUrl = p.imageUrl || ''
                   const hasImage = imageUrl && imageUrl.trim() !== '' && imageUrl !== 'null'
                   const isEditing = editing === p.id
                   return (

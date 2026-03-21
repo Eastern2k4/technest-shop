@@ -317,7 +317,7 @@ export default function Profile() {
                     margin: '0 auto'
                   }}
                 >
-                  {(displayUser?.fullName || displayUser?.name || displayUser?.email || 'U')
+                  {(displayUser?.fullName || displayUser?.email || 'U')
                     .charAt(0)
                     .toUpperCase()}
                 </div>
@@ -329,7 +329,7 @@ export default function Profile() {
                     Full Name
                   </label>
                   <div style={{ fontSize: 16, fontWeight: 500 }}>
-                    {displayUser?.fullName || displayUser?.name || 'N/A'}
+                    {displayUser?.fullName || 'N/A'}
                   </div>
                 </div>
 

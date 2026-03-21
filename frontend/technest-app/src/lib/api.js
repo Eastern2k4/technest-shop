@@ -11,8 +11,10 @@ export function toAuthUser(profile, token) {
   return {
     id: profile?.id,
     email: profile?.email || '',
-    name: profile?.fullName || '',
     fullName: profile?.fullName || '',
+    username: profile?.username || profile?.email || '',
+    phone: profile?.phone || '',
+    addressText: profile?.addressText || '',
     avatarUrl: profile?.avatarUrl || '',
     role: String(profile?.role || '').toUpperCase().replace(/^ROLE_/, ''),
     accessToken: token || null,

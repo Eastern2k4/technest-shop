@@ -12,8 +12,13 @@ export function AuthProvider({ children }) {
 
   const [user, setUser] = useState(() => {
     if (typeof window === 'undefined') return null
-    const u = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
-    return u ? { ...u, role: normRole(u.role), accessToken: u.accessToken || u.token || null } : null
+    try {
+      const u = JSON.parse(localStorage.getItem(USER_KEY) || 'null')
+      return u ? { ...u, role: normRole(u.role), accessToken: u.accessToken || u.token || null } : null
+    } catch {
+      localStorage.removeItem(USER_KEY)
+      return null
+    }
   })
 
   useEffect(() => {
@@ -32,8 +37,12 @@ export function AuthProvider({ children }) {
     if (typeof window === 'undefined') return
     const onStorage = (e) => {
       if (e.key !== USER_KEY) return
-      const next = e.newValue ? JSON.parse(e.newValue) : null
-      setUser(next ? { ...next, role: normRole(next.role), accessToken: next.accessToken || next.token || null } : null)
+      try {
+        const next = e.newValue ? JSON.parse(e.newValue) : null
+        setUser(next ? { ...next, role: normRole(next.role), accessToken: next.accessToken || next.token || null } : null)
+      } catch {
+        setUser(null)
+      }
     }
     window.addEventListener('storage', onStorage)
     return () => window.removeEventListener('storage', onStorage)
@@ -42,7 +51,7 @@ export function AuthProvider({ children }) {
   const login = (userData, returnTo = null) => {
     const fixed = {
       ...userData,
-      fullName: userData.fullName || userData.name || '',
+      fullName: userData.fullName || '',
       role: normRole(userData.role),
       accessToken: userData.accessToken || userData.token || null,
     }
@@ -63,7 +72,7 @@ export function AuthProvider({ children }) {
   const setAuthUser = (userData) => {
     const fixed = {
       ...userData,
-      fullName: userData.fullName || userData.name || '',
+      fullName: userData.fullName || '',
       role: normRole(userData.role),
       accessToken: userData.accessToken || userData.token || null,
     }

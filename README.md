@@ -15,22 +15,41 @@ Muc tieu cua file nay:
 - Ghi backlog uu tien sua
 - Ghi nhat ky cac thay doi da thuc hien
 
-## Current Status
+## Executive Snapshot
 
-### Da co
+### Kien truc hien tai
 
-- Frontend Vite co cac man hinh public, auth, cart, profile, admin, staff
-- Backend Spring Boot co auth, product, category, order, review, statistics, user management
-- JWT auth da ton tai
-- Admin va staff area da co route rieng
+- Monorepo gom React/Vite frontend va Spring Boot backend.
+- Auth dung JWT bearer token, FE luu token trong `localStorage`.
+- Admin/staff/customer da co phan quyen co ban.
+- Backend da bat dau tach `service + DTO` cho `order`, `review`, `statistics`.
+- `UserController` va mot phan `AuthController` van con business logic/validation nam trong controller.
 
-### Van de lon dang ton tai
+### Trang thai da xac nhan
 
-1. FE va BE van chua chuan hoa API contract day du.
-2. Repo van con test artefact, file tam va config nhay cam commit truc tiep.
-3. Test coverage van con thap, nhung backend da co integration test co nghiep vu cho auth/order.
-4. Order lifecycle da duoc siet lai co ban, nhung van chua co integration test theo nghiep vu va chua tach service rieng.
-5. FE-BE van con nhieu response dang dung `Map<String,Object>` thay vi DTO/schema ro rang.
+- Backend `./mvnw test` pass.
+- Frontend `npm run build` pass.
+- Luong dat hang da duoc bo sung khoa ghi tren product de giam oversell trong giao dich cung DB.
+- Luong reply review da duoc siet lai theo rule 1 review chi co 1 reply; goi lai se la update.
+- Xoa user da chuyen sang xoa order qua entity cascade thay vi bulk delete thang.
+- Auth bootstrap FE da an toan hon khi `localStorage` chua JSON hong.
+- `OrderController` da day logic tao don sang `OrderService`.
+- `ReviewController` da day logic review/reply sang `ReviewService`.
+- `StatisticsController` da day logic dashboard/revenue sang `StatisticsService`.
+- Product contract da duoc chuan hoa ve 1 shape duy nhat:
+  - `id, name, price, imageUrl, categoryId, categoryName, quantity, descriptionShort, descriptionLong`
+- Auth/profile contract da duoc chuan hoa ve:
+  - `id, email, username, fullName, phone, addressText, avatarUrl, role`
+- Order summary/detail da bo sung `itemCount` tu backend de FE khong can map tam.
+- Review/statistics contract da duoc typed hoa, khong con tra `Map<String,Object>` cho cac endpoint chinh.
+
+### Van de lon con mo
+
+1. FE va BE chua co API contract on dinh theo DTO/schema versioned.
+2. `UserController` va `AuthController.updateProfile` van chua tach service/request validation typed day du.
+3. Test coverage van con mong o review, admin, product filtering, va security edge cases.
+4. CORS, logging, va error response van chua dat muc production-ready.
+5. README con la single source of truth tam thoi; code chua tu mo ta duoc qua contract/test du manh.
 
 ## Key Findings
 
@@ -45,10 +64,17 @@ Muc tieu cua file nay:
   - create order insufficient stock
   - customer delivered flow
   - staff shipping/payment update
-- Controller tra ve nhieu `Map<String,Object>` thay vi DTO on dinh.
-- Business logic order nam thang trong controller.
-- Da them check stock, tru stock va transaction co ban khi tao don hang.
+- Review/statistics/order da chuyen sang DTO typed on dinh thay vi `Map` dong.
+- Business logic tao order/review/revenue khong con nam thang trong controller.
+- Da them check stock, tru stock, transaction co ban va pessimistic lock khi tao don hang.
 - Da siet lai quyen update order status/payment status cho admin/staff/customer.
+- Luong reply review da duoc doi thanh upsert de tranh duplicate reply.
+- Luong delete user da tranh bulk delete de giam rui ro vo FK voi `order_items`.
+- Auth va admin user response da chuyen sang DTO typed thay vi `Map` dong.
+- Order response da them `itemCount` va chuan hoa summary/detail shape.
+- `AuthController.me` khi chua login da chuyen sang response typed `authenticated=false`.
+- Review request/response da co record typed cho create/reply/list/pending-count.
+- Statistics dashboard/revenue da co record typed cho summary va chart series.
 
 ### Frontend
 
@@ -56,6 +82,8 @@ Muc tieu cua file nay:
 - Da bo `AuthProvider` long nhau
 - Auth parsing / login / register / me da giam duplicate, profile update khong con can goi `login()` de ghi de auth state
 - Mot so page admin dang tu map status khong khop enum backend
+- Auth bootstrap da them guard khi parse `localStorage`
+- Da bo alias `product.image`, `product.specs`, `user.name` o cac man hinh chinh; FE gio doc contract chuan.
 
 ### FE-BE integration
 
@@ -68,19 +96,19 @@ Muc tieu cua file nay:
 
 ### P0
 
-1. Lam backend build duoc
-2. Don file rac va artefact khoi source tree
-3. Tao root README theo doi project
-4. Chuan hoa base URL va HTTP client phia frontend
-5. Bo duplicate `AuthProvider`
+1. Tach `UserController` va `AuthController.updateProfile` sang service + request DTO typed
+2. Viet them integration test cho order concurrency
+3. Giam log noisey va dong leak thong tin noi bo trong error response
+4. Chuan hoa CORS/config theo env thay vi hard-code localhost
+5. Bo debug log thua trong auth/JWT/profile flow
 
 ### P1
 
 1. Chuan hoa auth contract FE-BE
-2. Chuan hoa order lifecycle va quyen update status
-3. Check stock va tru stock khi dat hang
-4. Dung backend export endpoint cho revenue
-5. Tach secrets khoi source code
+2. Chuan hoa review schema va moderation flow
+3. Chuan hoa admin/staff screen con lai theo contract backend that
+4. Them validation co cau truc cho request payload
+5. Bo `open-in-view`, giam `findAll()` tren cac man admin/revenue/order
 
 ### P2
 
@@ -91,9 +119,51 @@ Muc tieu cua file nay:
 
 ## Working Rules
 
-- Moi thay doi code xong phai review lai toan bo code cua he thong, kiem tra tinh mapping roi cap nhat file nay
-- Moi khi bat dau mot buoc moi, doc nhanh file nay truoc
-- Uu tien sua blocker build/runtime truoc, sau do moi den refactor
+- Moi thay doi code xong phai cap nhat file nay ngay.
+- Moi khi bat dau buoc moi, doc `Executive Snapshot`, `Priority Backlog`, `Known Decisions`, `Next Step`.
+- Khong can quet lai toan repo neu thay doi nam trong backlog da mo ta ro o day, tru khi README mat dong bo voi code.
+- Uu tien blocker build/runtime/data-integrity/security truoc, sau do moi den refactor.
+
+## Known Decisions
+
+### Order
+
+- Stock lookup da chuyen sang `pessimistic write lock` tai repository.
+- Muc tieu ngan han: chong oversell tren cung 1 DB transaction.
+- Logic tao don va mapping response da chuyen vao `OrderService`.
+- Chua giai quyet:
+  - concurrency test thuc su
+  - retry/timeout strategy khi lock tranh chap
+  - toi uu filter/query de tranh `findAll()` o man admin
+
+### Review
+
+- Rule hien tai: moi review chi co 1 reply.
+- Endpoint reply la upsert: neu review da co reply thi update noi dung/staffId.
+- `pending-count` phai dem theo review da duoc reply, khong dem theo so ban ghi reply.
+- List/create/reply/pending count da di qua `ReviewService` va DTO typed.
+- Chua giai quyet:
+  - validation rating/body/title
+  - moderation workflow that, hien dang auto approve
+  - test day du cho conflict/permission
+
+### User delete
+
+- Khong dung bulk `deleteByUserId` de xoa order nua.
+- Rule hien tai: fetch orders cua user va xoa qua entity de cascade xuong `order_items`.
+- Chua giai quyet:
+  - benchmark voi user co rat nhieu order
+  - delete strategy neu sau nay co them bang lien quan invoice/payment/shipment
+
+### Frontend auth storage
+
+- `AuthContext` phai coi `localStorage` la input khong tin cay.
+- Neu parse fail thi clear state thay vi crash app.
+- `/api/auth/me` khi chua dang nhap tra ve response typed `authenticated=false`.
+- Chua giai quyet:
+  - migrate sang cookie/httpOnly neu can muc bao mat cao hon
+  - central refresh/logout strategy cho token het han
+  - tach `updateProfile` sang service + request DTO thay vi `Map`
 
 ## Change Log
 
@@ -153,12 +223,49 @@ Muc tieu cua file nay:
     - customer mark delivered
     - staff update shipping/payment status
   - Xac nhan `mvn test` pass voi 6 tests, 0 failures
+- Hoan thanh buoc 9:
+  - Sua review principal finding trong review toan repo:
+    - `OrderController` dung `ProductRepository.findByIdForUpdate(...)` de khoa ban ghi product khi tru stock
+    - `ReviewController` doi reply sang upsert, khong tao duplicate `review_id`
+    - `pending-count` dem distinct review reply
+    - `UserController.deleteUser` xoa order qua entity cascade thay vi bulk delete
+    - `AuthContext` them guard khi `localStorage` hong JSON
+  - Them integration tests cho:
+    - reply review lan 2 phai update reply cu
+    - admin xoa user da co order van thanh cong
+  - Xac nhan `mvn test` pass voi 8 tests, 0 failures
+  - Xac nhan frontend van build thanh cong bang `npm run build`
+- Hoan thanh buoc 10:
+  - Chuan hoa contract FE-BE cho `product`, `auth profile`, `admin user`, `order`
+  - Loai bo alias:
+    - product: `image`, `specs`
+    - auth user: `name`
+    - staff orders: `grandTotal` map tam tu `total`
+  - Backend bo sung DTO typed cho auth/admin user va response order co `itemCount`
+  - Frontend da doi cac page public/admin/staff sang doc contract chuan
+  - Xac nhan backend test pass va frontend build pass
+- Hoan thanh buoc 11:
+  - Tach `OrderService`, `ReviewService`, `StatisticsService` de giam controller-heavy
+  - Tao DTO typed rieng cho:
+    - order request/response/status update
+    - review create/reply/list/pending count
+    - statistics summary/revenue series
+  - `ReviewController` va `StatisticsController` khong con tra `Map<String,Object>`
+  - `OrderController` khong con giu logic tao don hang trong controller
+  - `AuthController.me` khi anonymous da tra response typed thay vi `Map.of(...)`
+  - Xac nhan `mvn test` pass voi 8 tests, 0 failures
+  - Xac nhan frontend van build thanh cong bang `npm run build`
 
 ## Next Step
 
-Buoc dang lam:
+Buoc nen lam tiep:
 
-- Don dep repo va giam rui ro van hanh:
-  - tiep tuc tach DTO/schema ro rang
-  - xem lai cac thay doi worktree khong phai do Codex tao
-  - tiep tuc mo rong test cho admin/user/review
+1. Tach `UserController` va `AuthController.updateProfile` sang service + request DTO ro rang.
+2. Them test concurrency cho create order, it nhat cover 2 request tranh chap cung 1 product.
+3. Rut gon `GlobalExceptionHandler` va log security/JWT de tranh leak stack trace/noise.
+4. Chuan hoa CORS theo env va bo `spring.jpa.open-in-view`.
+5. Xem lai worktree:
+   - hien co file bi xoa trong git status:
+     - `backend/ecommerce/README.md`
+     - `frontend/technest-app/README.md`
+   - can quyet dinh giu xoa hay phuc hoi de tranh de worktree mo lau.

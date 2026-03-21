@@ -81,7 +81,7 @@ export default function Header() {
                 {user.avatarUrl ? (
                   <img 
                     src={user.avatarUrl} 
-                    alt={user.name || user.fullName || 'User'}
+                    alt={user.fullName || 'User'}
                     style={{
                       width: 32,
                       height: 32,
@@ -109,9 +109,9 @@ export default function Header() {
                     fontWeight: 600
                   }}
                 >
-                  {(user.name || user.fullName || user.email || 'U').charAt(0).toUpperCase()}
+                  {(user.fullName || user.email || 'U').charAt(0).toUpperCase()}
                 </span>
-                <span>{user.name || user.fullName}</span>
+                <span>{user.fullName || user.email}</span>
               </Link>
               <button className="btn-header" onClick={()=>{ logout(); navigate('/') }}>Đăng xuất</button>
             </>

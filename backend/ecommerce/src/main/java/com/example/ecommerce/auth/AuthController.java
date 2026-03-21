@@ -13,8 +13,10 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.example.ecommerce.auth.AuthDtos.AuthResponse;
+import com.example.ecommerce.auth.AuthDtos.AuthStatusResponse;
 import com.example.ecommerce.auth.AuthDtos.LoginRequest;
 import com.example.ecommerce.auth.AuthDtos.RegisterRequest;
+import com.example.ecommerce.auth.AuthDtos.UserProfileResponse;
 import com.example.ecommerce.security.JwtService;
 import com.example.ecommerce.user.Role;
 import com.example.ecommerce.user.RoleRepository;
@@ -74,21 +76,12 @@ public class AuthController {
     @GetMapping("/me")
     public Object me(@org.springframework.security.core.annotation.AuthenticationPrincipal User u) {
         if (u == null)
-            return java.util.Map.of("authenticated", false);
+            return new AuthStatusResponse(false);
 
         // Reload user to ensure role is loaded
         var user = users.findByEmail(u.getEmail()).orElse(u);
 
-        java.util.Map<String, Object> response = new java.util.HashMap<>();
-        response.put("id", user.getId());
-        response.put("email", user.getEmail());
-        response.put("username", user.getUserNameColumn() != null ? user.getUserNameColumn() : user.getEmail());
-        response.put("fullName", user.getFullName() != null ? user.getFullName() : "");
-        response.put("phone", user.getPhone() != null ? user.getPhone() : "");
-        response.put("addressText", user.getAddressText() != null ? user.getAddressText() : "");
-        response.put("avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "");
-        response.put("role", user.getRole() != null ? user.getRole().getName() : "");
-        return response;
+        return toUserProfileResponse(user, null);
     }
 
     @org.springframework.security.access.prepost.PreAuthorize("isAuthenticated()")
@@ -180,17 +173,7 @@ public class AuthController {
             System.out.println("[AuthController] User saved successfully");
 
             // Return updated user info
-            java.util.Map<String, Object> response = new java.util.HashMap<>();
-            response.put("id", u.getId());
-            response.put("email", u.getEmail());
-            response.put("username", u.getUserNameColumn() != null ? u.getUserNameColumn() : u.getEmail());
-            response.put("fullName", u.getFullName() != null ? u.getFullName() : "");
-            response.put("phone", u.getPhone() != null ? u.getPhone() : "");
-            response.put("addressText", u.getAddressText() != null ? u.getAddressText() : "");
-            response.put("avatarUrl", u.getAvatarUrl() != null ? u.getAvatarUrl() : "");
-            response.put("role", u.getRole() != null ? u.getRole().getName() : "");
-            response.put("message", "Profile updated successfully");
-            return response;
+            return toUserProfileResponse(u, "Profile updated successfully");
         } catch (ResponseStatusException e) {
             System.err
                     .println("[AuthController] ResponseStatusException: " + e.getStatusCode() + " - " + e.getReason());
@@ -201,5 +184,18 @@ public class AuthController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Failed to update profile: " + e.getMessage());
         }
+    }
+
+    private UserProfileResponse toUserProfileResponse(User user, String message) {
+        return new UserProfileResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getUserNameColumn() != null ? user.getUserNameColumn() : user.getEmail(),
+                user.getFullName() != null ? user.getFullName() : "",
+                user.getPhone() != null ? user.getPhone() : "",
+                user.getAddressText() != null ? user.getAddressText() : "",
+                user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
+                user.getRole() != null ? user.getRole().getName() : "",
+                message);
     }
 }

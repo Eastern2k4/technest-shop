@@ -8,7 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "review_replies")
+@Table(name = "review_replies", uniqueConstraints = @jakarta.persistence.UniqueConstraint(columnNames = "review_id"))
 public class ReviewReply {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -55,4 +55,3 @@ public class ReviewReply {
         this.body = body;
     }
 }
-

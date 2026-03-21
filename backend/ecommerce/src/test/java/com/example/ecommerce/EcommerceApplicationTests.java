@@ -26,6 +26,9 @@ import com.example.ecommerce.order.OrderItem;
 import com.example.ecommerce.order.OrderRepository;
 import com.example.ecommerce.product.Product;
 import com.example.ecommerce.product.ProductRepository;
+import com.example.ecommerce.review.Review;
+import com.example.ecommerce.review.ReviewReplyRepository;
+import com.example.ecommerce.review.ReviewRepository;
 import com.example.ecommerce.security.JwtService;
 import com.example.ecommerce.user.Role;
 import com.example.ecommerce.user.RoleRepository;
@@ -57,6 +60,12 @@ class EcommerceApplicationTests {
 	private OrderRepository orderRepository;
 
 	@Autowired
+	private ReviewRepository reviewRepository;
+
+	@Autowired
+	private ReviewReplyRepository reviewReplyRepository;
+
+	@Autowired
 	private PasswordEncoder passwordEncoder;
 
 	@Autowired
@@ -68,6 +77,8 @@ class EcommerceApplicationTests {
 
 	@BeforeEach
 	void setUp() {
+		reviewReplyRepository.deleteAll();
+		reviewRepository.deleteAll();
 		orderRepository.deleteAll();
 		productRepository.deleteAll();
 		userRepository.deleteAll();
@@ -190,6 +201,61 @@ class EcommerceApplicationTests {
 				.content(objectMapper.writeValueAsString(Map.of("paymentStatus", "PAID"))))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.paymentStatus", is("PAID")));
+	}
+
+	@Test
+	void replyingTwiceUpdatesExistingReplyInsteadOfDuplicating() throws Exception {
+		User customer = createUser("reviewer@example.com", customerRole);
+		User staff = createUser("staff-review@example.com", staffRole);
+		Product product = createProduct("Tablet", 4, "9000000");
+
+		Review review = new Review();
+		review.setProductId(product.getId());
+		review.setUserId(customer.getId());
+		review.setRating(5);
+		review.setTitle("Great");
+		review.setBody("Works well");
+		review.setIsApproved(true);
+		review = reviewRepository.save(review);
+
+		mockMvc.perform(post("/api/reviews/{reviewId}/reply", review.getId())
+				.header("Authorization", bearer(tokenFor(staff)))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("body", "First reply"))))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(post("/api/reviews/{reviewId}/reply", review.getId())
+				.header("Authorization", bearer(tokenFor(staff)))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(objectMapper.writeValueAsString(Map.of("body", "Updated reply"))))
+				.andExpect(status().isOk());
+
+		mockMvc.perform(get("/api/reviews/product/{productId}", product.getId()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$[0].reply.body", is("Updated reply")));
+
+		mockMvc.perform(get("/api/reviews/pending-count")
+				.header("Authorization", bearer(tokenFor(staff))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.pendingReplies", is(0)));
+
+		org.junit.jupiter.api.Assertions.assertEquals(1, reviewReplyRepository.count());
+	}
+
+	@Test
+	void adminCanDeleteUserWhoAlreadyHasOrders() throws Exception {
+		User admin = createUser("admin-delete@example.com", adminRole);
+		User customer = createUser("customer-delete@example.com", customerRole);
+		Product product = createProduct("SSD", 12, "1500000");
+		createOrder(customer, product, 2, Order.OrderStatus.PENDING, Order.PaymentStatus.UNPAID);
+
+		mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.delete("/api/admin/users/{id}", customer.getId())
+				.header("Authorization", bearer(tokenFor(admin))))
+				.andExpect(status().isNoContent());
+
+		org.junit.jupiter.api.Assertions.assertFalse(userRepository.existsById(customer.getId()));
+		org.junit.jupiter.api.Assertions.assertTrue(orderRepository.findByUserIdOrderByPlacedAtDesc(customer.getId()).isEmpty());
 	}
 
 	private Role createRole(String name) {

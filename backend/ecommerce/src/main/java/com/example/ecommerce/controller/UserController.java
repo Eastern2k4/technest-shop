@@ -29,6 +29,17 @@ import com.example.ecommerce.user.UserRepository;
 @RequestMapping("/api/admin/users")
 @PreAuthorize("hasRole('ADMIN')")
 public class UserController {
+    public record UserResponse(
+            Long id,
+            String email,
+            String username,
+            String fullName,
+            String phone,
+            String addressText,
+            String avatarUrl,
+            String role) {
+    }
+
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -44,21 +55,21 @@ public class UserController {
     }
 
     @GetMapping
-    public List<Map<String, Object>> getAllUsers() {
+    public List<UserResponse> getAllUsers() {
         return userRepository.findAll().stream()
-                .map(this::userToMap)
+                .map(this::toUserResponse)
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/{id}")
-    public Map<String, Object> getUser(@PathVariable Long id) {
+    public UserResponse getUser(@PathVariable Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
-        return userToMap(user);
+        return toUserResponse(user);
     }
 
     @PostMapping
-    public ResponseEntity<Map<String, Object>> createUser(@RequestBody CreateUserRequest request) {
+    public ResponseEntity<UserResponse> createUser(@RequestBody CreateUserRequest request) {
         // Check if email already exists
         if (userRepository.existsByEmail(request.email())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already in use");
@@ -89,11 +100,11 @@ public class UserController {
         user.setRole(role);
 
         User saved = userRepository.save(user);
-        return ResponseEntity.status(HttpStatus.CREATED).body(userToMap(saved));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toUserResponse(saved));
     }
 
     @PutMapping("/{id}")
-    public Map<String, Object> updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
+    public UserResponse updateUser(@PathVariable Long id, @RequestBody UpdateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found"));
 
@@ -139,7 +150,7 @@ public class UserController {
         }
 
         User updated = userRepository.save(user);
-        return userToMap(updated);
+        return toUserResponse(updated);
     }
 
     @DeleteMapping("/{id}")
@@ -148,21 +159,21 @@ public class UserController {
         if (!userRepository.existsById(id)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
-        orderRepository.deleteByUserId(id);
+        orderRepository.deleteAll(orderRepository.findAllByUserId(id));
         userRepository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 
-    private Map<String, Object> userToMap(User user) {
-        return Map.of(
-                "id", user.getId(),
-                "email", user.getEmail(),
-                "username", user.getUserNameColumn() != null ? user.getUserNameColumn() : user.getEmail(),
-                "fullName", user.getFullName() != null ? user.getFullName() : "",
-                "phone", user.getPhone() != null ? user.getPhone() : "",
-                "addressText", user.getAddressText() != null ? user.getAddressText() : "",
-                "avatarUrl", user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
-                "role", user.getRole().getName().toUpperCase());
+    private UserResponse toUserResponse(User user) {
+        return new UserResponse(
+                user.getId(),
+                user.getEmail(),
+                user.getUserNameColumn() != null ? user.getUserNameColumn() : user.getEmail(),
+                user.getFullName() != null ? user.getFullName() : "",
+                user.getPhone() != null ? user.getPhone() : "",
+                user.getAddressText() != null ? user.getAddressText() : "",
+                user.getAvatarUrl() != null ? user.getAvatarUrl() : "",
+                user.getRole().getName().toUpperCase());
     }
 
     public record CreateUserRequest(

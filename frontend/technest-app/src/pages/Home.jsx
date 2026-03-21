@@ -127,10 +127,10 @@ export default function Home() {
                     <article className="product-card" key={p.id}>
                       <Link className="card-link" to={`/product/${p.id}`}>
                         <div className="product-media">
-                          <img src={p.image || p.imageUrl} alt={p.name} />
+                          <img src={p.imageUrl} alt={p.name} />
                         </div>
                         <h3>{p.name}</h3>
-                        {(p.descriptionShort || p.specs) && <p style={{fontSize:14,color:'var(--muted)'}}>{p.descriptionShort || p.specs}</p>}
+                        {p.descriptionShort && <p style={{fontSize:14,color:'var(--muted)'}}>{p.descriptionShort}</p>}
                         <div className="price">{Number(p.price).toLocaleString('vi-VN')}₫</div>
                       </Link>
                       <button className="btn-primary" onClick={() => add(p.id, 1)}>Thêm vào giỏ</button>

@@ -12,6 +12,8 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     List<Order> findByUserIdOrderByPlacedAtDesc(Long userId);
 
+    List<Order> findAllByUserId(Long userId);
+
     void deleteByUserId(Long userId);
 
     @Query("select count(o) > 0 from Order o join o.items i " +

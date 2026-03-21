@@ -10,4 +10,19 @@ public class AuthDtos {
     public record AuthResponse(String token) {
     }
 
+    public record AuthStatusResponse(boolean authenticated) {
+    }
+
+    public record UserProfileResponse(
+            Long id,
+            String email,
+            String username,
+            String fullName,
+            String phone,
+            String addressText,
+            String avatarUrl,
+            String role,
+            String message) {
+    }
+
 }

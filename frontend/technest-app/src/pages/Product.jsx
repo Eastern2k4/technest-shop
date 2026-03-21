@@ -67,9 +67,9 @@ export default function Product() {
     <main className="section">
       <div className="container product-detail-extended">
         <div className="pd-gallery">
-          <img className="pd-main" src={product.image || product.imageUrl} alt={product.name} />
+          <img className="pd-main" src={product.imageUrl} alt={product.name} />
           <div className="pd-thumbs">
-            {[...Array(5)].map((_,i)=>(<img key={i} src={product.image || product.imageUrl} alt="thumb" onClick={e=>{document.querySelector('.pd-main').src=e.target.src}}/>))}
+            {[...Array(5)].map((_,i)=>(<img key={i} src={product.imageUrl} alt="thumb" onClick={e=>{document.querySelector('.pd-main').src=e.target.src}}/>))}
           </div>
         </div>
         <div className="pd-info">

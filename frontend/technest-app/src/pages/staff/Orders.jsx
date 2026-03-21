@@ -23,11 +23,9 @@ export default function StaffOrders() {
         id: o.id,
         orderNumber: o.orderNumber,
         customerName: o.customerName,
-        // BE trả 'total', FE đang dùng 'grandTotal'
-        grandTotal: o.total,
+        total: o.total,
         status: o.status,
         paymentStatus: o.paymentStatus,
-        // chưa có itemCount thì tạm để 0, hoặc bạn sẽ bổ sung sau
         itemCount: o.itemCount || 0
       }))
   
@@ -96,7 +94,7 @@ export default function StaffOrders() {
             No orders to process
           </p>
           <p style={{ fontSize: 14, color: 'var(--muted, #999)' }}>
-            Orders API is not yet implemented. Orders will appear here once the backend API is available.
+            Chưa có đơn hàng nào cần xử lý.
           </p>
         </div>
       ) : (
@@ -123,7 +121,7 @@ export default function StaffOrders() {
                   <td>{order.orderNumber || `#${order.id}`}</td>
                   <td>{order.customerName || 'N/A'}</td>
                   <td>{order.itemCount || 0} item(s)</td>
-                  <td>{Number(order.grandTotal || 0).toLocaleString('vi-VN')}₫</td>
+                  <td>{Number(order.total || 0).toLocaleString('vi-VN')}₫</td>
                   <td>
                     <span style={{
                       padding: '4px 8px',

@@ -55,12 +55,12 @@ export default function Cart() {
       return {
         ...product,
         price: Number(product.price) || 0,
-        image: product.image || product.imageUrl || '',
+        imageUrl: product.imageUrl || '',
         name: product.name || String(id),
-        specs: product.descriptionShort || product.specs || ''
+        descriptionShort: product.descriptionShort || ''
       }
     }
-    return { price: 0, name: String(id), image: '', specs: '' }
+    return { price: 0, name: String(id), imageUrl: '', descriptionShort: '' }
   }
   
   const subtotal = entries.reduce((s, [id, qty]) => s + find(id).price * Number(qty), 0)
@@ -176,10 +176,10 @@ export default function Cart() {
               return (
                 <div className="cart-row" key={id}>
                   <Link to={`/product/${id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                    <img src={p.image || p.imageUrl || ''} alt={p.name} />
+                    <img src={p.imageUrl || ''} alt={p.name} />
                   </Link>
                   <Link to={`/product/${id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1 }}>
-                    <div><div className="title">{p.name}</div>{(p.descriptionShort || p.specs) && <div className="muted">{p.descriptionShort || p.specs}</div>}</div>
+                    <div><div className="title">{p.name}</div>{p.descriptionShort && <div className="muted">{p.descriptionShort}</div>}</div>
                   </Link>
                   <div className="price">{Number(p.price).toLocaleString('vi-VN')}₫</div>
                   <div className="qty-control">

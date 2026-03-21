@@ -11,10 +11,8 @@ public class ProductMapper {
                 p.getPrice(),
                 p.getImageUrl(),
                 p.getCategoryId(),
-                p.getQuantity(),
-                p.getImageUrl(), // image field (alias for imageUrl)
-                p.getDescriptionShort() != null ? p.getDescriptionShort() : "", // specs field uses descriptionShort
                 categoryName != null ? categoryName : "",
+                p.getQuantity(),
                 p.getDescriptionShort() != null ? p.getDescriptionShort() : "",
                 p.getDescriptionLong() != null ? p.getDescriptionLong() : "");
     }
