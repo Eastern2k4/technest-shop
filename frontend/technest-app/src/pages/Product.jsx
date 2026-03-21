@@ -3,8 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { api } from '../lib/api.js'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 export default function Product() {
   const { id } = useParams()
   const { add } = useCart()

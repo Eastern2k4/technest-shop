@@ -1,19 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
-
-// Helper: parse JSON an toàn (kể cả khi body rỗng/không phải JSON)
-async function parseJsonSafe(res) {
-  const ct = res.headers.get('content-type') || ''
-  if (res.status === 204) return null
-  if (!ct.includes('application/json')) {
-    const txt = await res.text()
-    return txt ? { _raw: txt } : null
-  }
-  try { return await res.json() } catch { return null }
-}
+import { AuthAPI, toAuthUser } from '../lib/api.js'
 
 export default function SignUp() {
   const { login } = useAuth()
@@ -41,49 +29,14 @@ export default function SignUp() {
     }
 
     try {
-      // 1) Đăng ký
-      const res = await fetch(`${API_BASE}/api/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      const data = await parseJsonSafe(res)
+      const data = await AuthAPI.register(payload.fullName, payload.email, payload.password)
 
-      if (!res.ok) {
-        const msg =
-          (data && (data.message || data.error)) ||
-          (res.status === 0 ? 'Không thể kết nối máy chủ.' : `Register failed (HTTP ${res.status})`)
-        throw new Error(msg)
-      }
-
-      // 2) Nếu BE trả token → auto login, ngược lại → điều hướng /signin
       if (data && data.token) {
-        // 2.1) Lấy hồ sơ để có role
-        const meRes = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${data.token}` },
-        })
-        const me = await parseJsonSafe(meRes)
-        if (!meRes.ok) {
-          const msg =
-            (me && (me.message || me.error)) ||
-            `Fetch profile failed (HTTP ${meRes.status})`
-          throw new Error(msg)
-        }
+        const me = await AuthAPI.me(data.token)
         if (!me) throw new Error('Phản hồi profile rỗng.')
         if (me.authenticated === false) throw new Error('Chưa xác thực người dùng.')
 
-        // 3) Chuẩn hoá user object cho AuthContext
-        const user = {
-          id: me.id,
-          email: me.email,
-          name: me.fullName || '',
-          fullName: me.fullName || '',                                      // dùng fullName thống nhất
-          avatarUrl: me.avatarUrl || '',
-          role: String(me.role || '').toUpperCase().replace(/^ROLE_/, ''),  // ADMIN/STAFF/CUSTOMER
-          accessToken: data.token,                                          // map token -> accessToken
-        }
-
-        login(user, returnTo) // AuthContext sẽ redirect theo role hoặc returnTo
+        login(toAuthUser(me, data.token), returnTo)
       } else {
         // 2.2) Không có token: coi như đăng ký xong → qua trang đăng nhập
         setSuccess(data?.message || 'Đăng ký thành công. Vui lòng đăng nhập.')

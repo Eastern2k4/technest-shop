@@ -3,7 +3,6 @@ import ChatbotWithHistory from './components/ChatbotWithHistory.jsx'
 import Footer from './components/Footer.jsx'
 import Header from './components/Header.jsx'
 
-import { AuthProvider } from './context/AuthContext.jsx'
 import { CartProvider } from './context/CartContext.jsx'
 import Cart from './pages/Cart.jsx'
 import Category from './pages/Category.jsx'
@@ -34,10 +33,9 @@ import StaffDashboard from './pages/staff/StaffDashboard.jsx'
 
 export default function App() {
   return (
-    <AuthProvider>
-      <CartProvider>
-        <Header />
-        <Routes>
+    <CartProvider>
+      <Header />
+      <Routes>
           {/* Public */}
           <Route path="/" element={<Home />} />
           <Route path="/category/:cat" element={<Category />} />
@@ -108,10 +106,9 @@ export default function App() {
 
           {/* Fallback */}
           <Route path="*" element={<Home />} />
-        </Routes>
-        <Footer />
-        <ChatbotWithHistory />
-      </CartProvider>
-    </AuthProvider>
+      </Routes>
+      <Footer />
+      <ChatbotWithHistory />
+    </CartProvider>
   )
 }

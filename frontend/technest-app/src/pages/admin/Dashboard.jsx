@@ -26,7 +26,7 @@ function StatusBadge({ value, type = "status" }) {
   } else {
     if (v === "PENDING") cls += " badge--pending";
     else if (v === "SHIPPING") cls += " badge--shipping";
-    else if (v === "COMPLETED" || v === "DONE") cls += " badge--success";
+    else if (v === "DELIVERED" || v === "COMPLETED" || v === "DONE") cls += " badge--success";
     else if (v === "CANCELLED" || v === "CANCELED") cls += " badge--danger";
     else cls += " badge--neutral";
   }

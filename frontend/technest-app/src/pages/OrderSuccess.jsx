@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-
-const API = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+import { api } from '../lib/api.js'
 
 export default function OrderSuccess() {
   const { id } = useParams()
@@ -26,18 +25,7 @@ export default function OrderSuccess() {
       return
     }
 
-    const token = user?.accessToken || user?.token
-    const headers = token ? { Authorization: `Bearer ${token}` } : {}
-
-    fetch(`${API}/api/orders/${id}`, { headers })
-      .then(res => {
-        if (!res.ok) {
-          if (res.status === 401) throw new Error('Bạn không có quyền xem đơn hàng này')
-          if (res.status === 404) throw new Error('Đơn hàng không tồn tại')
-          throw new Error(`Lỗi ${res.status}`)
-        }
-        return res.json()
-      })
+    api(`/api/orders/${id}`)
       .then(data => setOrder(data))
       .catch(err => {
         console.error('Error fetching order:', err)

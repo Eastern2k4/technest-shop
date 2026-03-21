@@ -1,6 +1,6 @@
 // src/pages/admin/Revenue.jsx
 import { useEffect, useState } from 'react'
-import { api, buildApiUrl } from '../../lib/api.js'
+import { api, buildApiUrl, getAccessToken } from '../../lib/api.js'
 
 export default function AdminRevenue() {
   const [data, setData] = useState(null)
@@ -29,29 +29,22 @@ export default function AdminRevenue() {
 
   async function exportCsv() {
     try {
-      const orders = await api('/api/orders')
-      const list = Array.isArray(orders) ? orders : []
-      const from = exportFrom || ''
-      const to = exportTo || ''
-      const dailyMap = new Map()
+      const params = new URLSearchParams()
+      if (exportFrom) params.set('from', exportFrom)
+      if (exportTo) params.set('to', exportTo)
 
-      list.forEach(o => {
-        if (o.status !== 'DELIVERED' || o.paymentStatus !== 'PAID') return
-        if (!o.placedAt) return
-        const dateKey = typeof o.placedAt === 'string' ? o.placedAt.slice(0, 10) : ''
-        if (!dateKey) return
-        if (from && dateKey < from) return
-        if (to && dateKey > to) return
-        const amount = Number(o.total || 0)
-        dailyMap.set(dateKey, (dailyMap.get(dateKey) || 0) + amount)
+      const token = getAccessToken()
+      const url = buildApiUrl(`/api/admin/revenue/export${params.toString() ? `?${params.toString()}` : ''}`)
+      const res = await fetch(url, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       })
 
-      const dates = Array.from(dailyMap.keys()).sort()
-      let csv = 'date,revenue\n'
-      dates.forEach(d => {
-        csv += `${d},${dailyMap.get(d) || 0}\n`
-      })
+      if (!res.ok) {
+        const message = await res.text()
+        throw new Error(message || `Export failed (HTTP ${res.status})`)
+      }
 
+      const csv = await res.text()
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)

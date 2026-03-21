@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { api } from '../lib/api.js'
+import { api, toAuthUser } from '../lib/api.js'
 
 export default function Profile() {
-  const { user, login } = useAuth()
+  const { user, setAuthUser } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
@@ -203,14 +203,10 @@ export default function Profile() {
 
       console.log('[Profile] Update response:', response)
 
-      const updatedUser = {
-        ...user,
-        fullName: response.fullName || formData.fullName,
-        name: response.fullName || formData.fullName,
-        username: response.username || formData.username,
-        avatarUrl: response.avatarUrl || formData.avatarUrl
-      }
-      login(updatedUser)
+      setAuthUser(toAuthUser({
+        ...response,
+        email: response.email || user?.email,
+      }, user?.accessToken || user?.token))
 
       setSuccess(response.message || 'Profile updated successfully!')
 

@@ -1,6 +1,6 @@
 // frontend/technest-app/src/context/AuthContext.jsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 const AuthContext = createContext(null)
 const USER_KEY = 'tn_user'
@@ -8,7 +8,6 @@ const normRole = r => (r ? String(r).toUpperCase().replace(/^ROLE_/,'') : '')
 
 export function AuthProvider({ children }) {
   const navigate = useNavigate()
-  const location = useLocation()
   const [ready, setReady] = useState(false)
 
   const [user, setUser] = useState(() => {
@@ -61,6 +60,16 @@ export function AuthProvider({ children }) {
     }
   }
 
+  const setAuthUser = (userData) => {
+    const fixed = {
+      ...userData,
+      fullName: userData.fullName || userData.name || '',
+      role: normRole(userData.role),
+      accessToken: userData.accessToken || userData.token || null,
+    }
+    setUser(fixed)
+  }
+
   const logout = () => {
     setUser(null)
     if (typeof window !== 'undefined') localStorage.removeItem(USER_KEY)
@@ -79,6 +88,7 @@ export function AuthProvider({ children }) {
     role: user?.role || null,
     token: user?.accessToken || user?.token || null,
     login,
+    setAuthUser,
     logout,
     authHeader,
   }), [ready, user, authHeader])

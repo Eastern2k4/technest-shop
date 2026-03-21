@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-
-// Prefer Vite proxy in dev (relative path), otherwise use configured API URL
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '')
+import { api } from '../lib/api.js'
 
 export default function Home() {
   const { add } = useCart()
@@ -16,9 +14,7 @@ export default function Home() {
     let completed = 0
     
     cats.forEach(cat => {
-      const url = `${API_BASE ? API_BASE : ''}/api/products?cat=${cat}`
-      fetch(url)
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      api(`/api/products?cat=${cat}`)
         .then(list => Array.isArray(list) ? list : [])
         .then(list => {
           setProducts(prev => ({ ...prev, [cat]: list.slice(0, 4) }))

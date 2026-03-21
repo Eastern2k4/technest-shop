@@ -2,6 +2,7 @@ package com.example.ecommerce.controller;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.ecommerce.order.Order;
 import com.example.ecommerce.order.OrderItem;
@@ -42,71 +44,61 @@ public class OrderController {
         this.productRepository = productRepository;
     }
 
+    @Transactional
     @PostMapping
     public ResponseEntity<Map<String, Object>> createOrder(
             @RequestBody OrderRequest request,
             Authentication authentication) {
-
-        System.out.println("[OrderController] createOrder called, authentication: "
-                + (authentication != null ? "present" : "null"));
-
-        // Check authentication
         if (authentication == null) {
-            System.err.println("[OrderController] ERROR: Authentication is null");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                     "Authentication required. Please log in again.");
         }
 
-        System.out.println("[OrderController] Principal type: " + authentication.getPrincipal().getClass().getName());
-        System.out.println("[OrderController] Authorities: " + authentication.getAuthorities());
-
-        // Verify principal is a User instance
         if (!(authentication.getPrincipal() instanceof User)) {
-            System.err.println("[OrderController] ERROR: Principal is not a User instance");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                     "Invalid authentication. Please log in again.");
         }
 
         User user = (User) authentication.getPrincipal();
 
-        // Verify user is not null
         if (user == null || user.getId() == null) {
-            System.err.println("[OrderController] ERROR: User is null or has no ID");
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                     "User not found. Please log in again.");
         }
 
-        System.out.println(
-                "[OrderController] Processing order for user: " + user.getEmail() + " (ID: " + user.getId() + ")");
-
         if (request.items() == null || request.items().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order must contain at least one item");
         }
+        if (request.address() == null || request.address().stream().anyMatch(part -> part == null || part.isBlank())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Shipping address is required");
+        }
 
-        // Create order
         Order order = new Order();
         order.setUser(user);
         order.setPaymentMethod(request.payment());
         order.setShippingAddressText(String.join(", ", request.address()));
 
-        // Calculate totals
         BigDecimal subtotal = BigDecimal.ZERO;
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (OrderItemRequest itemReq : request.items()) {
-            System.out.println("[OrderController] Looking for product with ID: " + itemReq.id());
+            if (itemReq.id() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product ID is required");
+            }
+            if (itemReq.qty() == null || itemReq.qty() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Quantity must be greater than 0 for product: " + itemReq.id());
+            }
+
             Product product = productRepository.findById(itemReq.id())
                     .orElseThrow(() -> {
-                        System.err.println("[OrderController] ERROR: Product not found with ID: " + itemReq.id());
                         return new ResponseStatusException(HttpStatus.NOT_FOUND,
                                 "Product not found: " + itemReq.id());
                     });
-            System.out.println(
-                    "[OrderController] Found product: " + product.getName() + " (ID: " + product.getId() + ")");
 
-            if (itemReq.qty() <= 0) {
+            if (product.getQuantity() < itemReq.qty()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Quantity must be greater than 0 for product: " + product.getName());
+                        "Insufficient stock for product: " + product.getName());
             }
 
             BigDecimal unitPrice = product.getPrice();
@@ -122,6 +114,9 @@ public class OrderController {
             orderItem.setLineTotal(lineTotal);
 
             orderItems.add(orderItem);
+
+            product.setQuantity(product.getQuantity() - itemReq.qty());
+            productRepository.save(product);
         }
 
         BigDecimal shippingFee = subtotal.compareTo(BigDecimal.ZERO) > 0
@@ -135,28 +130,7 @@ public class OrderController {
         order.setItems(orderItems);
 
         Order savedOrder = orderRepository.save(order);
-
-        // Build response
-        List<Map<String, Object>> itemsResponse = new ArrayList<>();
-        for (OrderItem item : savedOrder.getItems()) {
-            itemsResponse.add(Map.of(
-                    "id", item.getProduct().getId(),
-                    "name", item.getNameSnapshot(),
-                    "qty", item.getQuantity(),
-                    "price", item.getUnitPrice()));
-        }
-
-        Map<String, Object> response = Map.of(
-                "id", savedOrder.getId(),
-                "orderNumber", savedOrder.getOrderNumber(),
-                "items", itemsResponse,
-                "subtotal", savedOrder.getSubtotal(),
-                "shipping", savedOrder.getShippingFee(),
-                "total", savedOrder.getGrandTotal(),
-                "paymentMethod", savedOrder.getPaymentMethod() != null ? savedOrder.getPaymentMethod() : "cod",
-                "status", savedOrder.getStatus().name());
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(toOrderResponse(savedOrder));
     }
 
     @GetMapping("/{id}")
@@ -187,7 +161,6 @@ public class OrderController {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         }
 
-        // build items
         List<Map<String, Object>> itemsResponse = new ArrayList<>();
         for (OrderItem item : order.getItems()) {
             Map<String, Object> itemMap = new HashMap<>();
@@ -198,7 +171,6 @@ public class OrderController {
             itemsResponse.add(itemMap);
         }
 
-        // build response chính
         Map<String, Object> response = new HashMap<>();
         response.put("id", order.getId());
         response.put("orderNumber", order.getOrderNumber());
@@ -337,6 +309,7 @@ public class OrderController {
 
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('ADMIN', 'STAFF', 'CUSTOMER')")
+    @Transactional
     public ResponseEntity<Map<String, Object>> updateOrderStatus(
             @PathVariable Long id,
             @RequestBody Map<String, String> request,
@@ -350,6 +323,7 @@ public class OrderController {
         boolean isStaff = hasRole(authentication, "STAFF");
         boolean isCustomer = hasRole(authentication, "CUSTOMER");
         boolean isAdmin = hasRole(authentication, "ADMIN");
+        boolean canManageOrders = isAdmin || isStaff;
 
         Order order = orderRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
@@ -357,24 +331,40 @@ public class OrderController {
         String newStatus = request.get("status");
         if (newStatus != null) {
             try {
-                Order.OrderStatus oldStatus = order.getStatus();
                 Order.OrderStatus status = Order.OrderStatus.valueOf(newStatus.toUpperCase());
                 if (status == Order.OrderStatus.DELIVERED) {
-                    if (!isCustomer) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                                "Only customers can mark orders as delivered");
-                    }
-                    if (order.getUser() == null || !order.getUser().getId().equals(actor.getId())) {
-                        throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                                "You can only update your own orders");
+                    if (canManageOrders) {
+                        order.setStatus(status);
+                    } else {
+                        if (!isCustomer) {
+                            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                    "Only customers can mark orders as delivered");
+                        }
+                        if (order.getUser() == null || !order.getUser().getId().equals(actor.getId())) {
+                            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                                    "You can only update your own orders");
+                        }
+                        if (order.getStatus() != Order.OrderStatus.SHIPPING) {
+                            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                    "Only shipping orders can be marked as delivered");
+                        }
+                        order.setStatus(status);
                     }
                 } else {
-                    if (!isStaff) {
+                    if (!canManageOrders) {
                         throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                                "Only staff can update order status to " + status.name());
+                                "Only admin or staff can update order status to " + status.name());
                     }
+                    if (status == Order.OrderStatus.SHIPPING && order.getStatus() != Order.OrderStatus.PENDING) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Only pending orders can be moved to shipping");
+                    }
+                    if (status == Order.OrderStatus.PENDING && order.getStatus() != Order.OrderStatus.PENDING) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                "Order cannot be moved back to pending");
+                    }
+                    order.setStatus(status);
                 }
-                order.setStatus(status);
             } catch (IllegalArgumentException e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status: " + newStatus);
             }
@@ -382,12 +372,14 @@ public class OrderController {
 
         String newPaymentStatus = request.get("paymentStatus");
         if (newPaymentStatus != null) {
-            if (!isStaff) {
+            if (!canManageOrders) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                        "Only staff can update payment status");
+                        "Only admin or staff can update payment status");
             }
             try {
-                order.setPaymentStatus(Order.PaymentStatus.valueOf(newPaymentStatus.toUpperCase()));
+                Order.PaymentStatus paymentStatus = Order.PaymentStatus.valueOf(newPaymentStatus.toUpperCase());
+                order.setPaymentStatus(paymentStatus);
+                order.setPaidAt(paymentStatus == Order.PaymentStatus.PAID ? LocalDateTime.now() : null);
             } catch (IllegalArgumentException e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Invalid payment status: " + newPaymentStatus);
@@ -395,28 +387,7 @@ public class OrderController {
         }
 
         Order saved = orderRepository.save(order);
-
-        List<Map<String, Object>> itemsResponse = new ArrayList<>();
-        for (OrderItem item : saved.getItems()) {
-            itemsResponse.add(Map.of(
-                    "id", item.getProduct().getId(),
-                    "name", item.getNameSnapshot(),
-                    "qty", item.getQuantity(),
-                    "price", item.getUnitPrice()));
-        }
-
-        Map<String, Object> response = Map.of(
-                "id", saved.getId(),
-                "orderNumber", saved.getOrderNumber(),
-                "items", itemsResponse,
-                "subtotal", saved.getSubtotal(),
-                "shipping", saved.getShippingFee(),
-                "total", saved.getGrandTotal(),
-                "paymentMethod", saved.getPaymentMethod() != null ? saved.getPaymentMethod() : "cod",
-                "status", saved.getStatus().name(),
-                "paymentStatus", saved.getPaymentStatus().name());
-
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(toOrderResponse(saved));
     }
 
     private boolean hasRole(Authentication authentication, String role) {
@@ -439,5 +410,28 @@ public class OrderController {
     public record OrderItemRequest(
             Long id,
             Integer qty) {
+    }
+
+    private Map<String, Object> toOrderResponse(Order order) {
+        List<Map<String, Object>> itemsResponse = new ArrayList<>();
+        for (OrderItem item : order.getItems()) {
+            itemsResponse.add(Map.of(
+                    "id", item.getProduct().getId(),
+                    "name", item.getNameSnapshot(),
+                    "qty", item.getQuantity(),
+                    "price", item.getUnitPrice()));
+        }
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("id", order.getId());
+        response.put("orderNumber", order.getOrderNumber());
+        response.put("items", itemsResponse);
+        response.put("subtotal", order.getSubtotal());
+        response.put("shipping", order.getShippingFee());
+        response.put("total", order.getGrandTotal());
+        response.put("paymentMethod", order.getPaymentMethod() != null ? order.getPaymentMethod() : "cod");
+        response.put("status", order.getStatus().name());
+        response.put("paymentStatus", order.getPaymentStatus().name());
+        return response;
     }
 }

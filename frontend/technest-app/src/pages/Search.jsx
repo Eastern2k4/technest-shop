@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-
-// Use proxy in dev (relative path) or configured API URL
-const API = import.meta.env.VITE_API_URL || ''
+import { api } from '../lib/api.js'
 
 const COMMON_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Vivo', 'Realme', 'Huawei', 'Sony', 'LG', 'Asus', 'Acer', 'Dell', 'HP', 'Lenovo', 'MSI', 'Razer', 'Logitech', 'JBL', 'Bose']
 
@@ -70,15 +68,7 @@ export default function Search() {
     if (maxPriceParam) params.set('maxPrice', maxPriceParam)
     if (brandParam) params.set('brand', brandParam)
     
-    const url = `${API}/api/products?${params.toString()}`
-    
-    fetch(url)
-      .then(r => {
-        if (!r.ok) {
-          throw new Error(`HTTP ${r.status}: ${r.statusText}`)
-        }
-        return r.json()
-      })
+    api(`/api/products?${params.toString()}`)
       .then(data => {
         const products = Array.isArray(data) ? data : (data.content || [])
         setItems(products)
