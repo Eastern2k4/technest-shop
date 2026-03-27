@@ -4,7 +4,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
+
+import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -43,7 +44,7 @@ public class OrderController {
 
     @PostMapping
     public ResponseEntity<OrderDetailResponse> createOrder(
-            @RequestBody OrderRequest request,
+            @RequestBody @Valid OrderRequest request,
             Authentication authentication) {
         if (authentication == null) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
@@ -113,8 +114,6 @@ public class OrderController {
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to,
             @RequestParam(required = false) String q) {
-        List<Order> orders = orderRepository.findAll();
-
         final LocalDate fromDate = parseDateParam(from);
         final LocalDate toDate = parseDateParam(to);
         final String qLower = q != null ? q.trim().toLowerCase(Locale.ROOT) : null;
@@ -128,37 +127,13 @@ public class OrderController {
         } else {
             statusFilter = null;
         }
-
-        if (statusFilter != null || fromDate != null || toDate != null || (qLower != null && !qLower.isBlank())) {
-            orders = orders.stream()
-                    .filter(o -> {
-                        if (statusFilter != null && o.getStatus() != statusFilter) {
-                            return false;
-                        }
-                        if (fromDate != null) {
-                            if (o.getPlacedAt() == null || o.getPlacedAt().toLocalDate().isBefore(fromDate)) {
-                                return false;
-                            }
-                        }
-                        if (toDate != null) {
-                            if (o.getPlacedAt() == null || o.getPlacedAt().toLocalDate().isAfter(toDate)) {
-                                return false;
-                            }
-                        }
-                        if (qLower != null && !qLower.isBlank()) {
-                            String orderNumber = o.getOrderNumber() != null ? o.getOrderNumber().toLowerCase(Locale.ROOT) : "";
-                            String email = o.getUser() != null && o.getUser().getEmail() != null
-                                    ? o.getUser().getEmail().toLowerCase(Locale.ROOT)
-                                    : "";
-                            String name = o.getUser() != null && o.getUser().getFullName() != null
-                                    ? o.getUser().getFullName().toLowerCase(Locale.ROOT)
-                                    : "";
-                            return orderNumber.contains(qLower) || email.contains(qLower) || name.contains(qLower);
-                        }
-                        return true;
-                    })
-                    .collect(Collectors.toList());
-        }
+        LocalDateTime fromDateTime = fromDate != null ? fromDate.atStartOfDay() : null;
+        LocalDateTime toDateExclusive = toDate != null ? toDate.plusDays(1).atStartOfDay() : null;
+        List<Order> orders = orderRepository.searchAdminOrders(
+                statusFilter,
+                fromDateTime,
+                toDateExclusive,
+                qLower != null && !qLower.isBlank() ? qLower : null);
 
         return ResponseEntity.ok(orders.stream().map(orderService::toOrderSummaryResponse).toList());
     }
@@ -168,7 +143,7 @@ public class OrderController {
     @Transactional
     public ResponseEntity<OrderDetailResponse> updateOrderStatus(
             @PathVariable Long id,
-            @RequestBody OrderStatusUpdateRequest request,
+            @RequestBody @Valid OrderStatusUpdateRequest request,
             Authentication authentication) {
 
         if (authentication == null || !(authentication.getPrincipal() instanceof User)) {

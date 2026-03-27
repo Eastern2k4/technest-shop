@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api.js'
+import FieldError from '../../components/FieldError.jsx'
+import { UsersAPI, getErrorMessage, getValidationErrors } from '../../lib/api.js'
 
 export default function AdminUsers() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [roles, setRoles] = useState(['ADMIN', 'STAFF', 'CUSTOMER'])
@@ -17,10 +20,10 @@ export default function AdminUsers() {
     try {
       setLoading(true)
       setError('')
-      const data = await api('/api/admin/users')
+      const data = await UsersAPI.list()
       setUsers(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message || 'Failed to load users')
+      setError(getErrorMessage(err, 'Failed to load users'))
     } finally {
       setLoading(false)
     }
@@ -28,11 +31,15 @@ export default function AdminUsers() {
 
   function handleNew() {
     setEditingUser(null)
+    setNotice('')
+    setFieldErrors({})
     setShowModal(true)
   }
 
   function handleEdit(user) {
     setEditingUser(user)
+    setNotice('')
+    setFieldErrors({})
     setShowModal(true)
   }
 
@@ -40,16 +47,21 @@ export default function AdminUsers() {
     if (!confirm('Are you sure you want to delete this user?')) return
     
     try {
-      await api(`/api/admin/users/${id}`, { method: 'DELETE' })
-      loadUsers()
+      await UsersAPI.remove(id)
+      setError('')
+      setNotice('User deleted successfully.')
+      await loadUsers()
     } catch (err) {
-      alert('Failed to delete user: ' + err.message)
+      setNotice('')
+      setError(getErrorMessage(err, 'Failed to delete user'))
     }
   }
 
   async function handleSave(formData) {
     try {
       setError('')
+      setNotice('')
+      setFieldErrors({})
       const payload = {
         email: formData.get('email'),
         username: formData.get('username'),
@@ -65,24 +77,20 @@ export default function AdminUsers() {
         if (!payload.password) {
           delete payload.password
         }
-        await api(`/api/admin/users/${editingUser.id}`, {
-          method: 'PUT',
-          body: payload
-        })
+        await UsersAPI.update(editingUser.id, payload)
       } else {
         if (!payload.password) {
           throw new Error('Password is required for new users')
         }
-        await api('/api/admin/users', {
-          method: 'POST',
-          body: payload
-        })
+        await UsersAPI.create(payload)
       }
       
       setShowModal(false)
-      loadUsers()
+      setNotice(editingUser ? 'User updated successfully.' : 'User created successfully.')
+      await loadUsers()
     } catch (err) {
-      setError(err.message || 'Failed to save user')
+      setFieldErrors(getValidationErrors(err))
+      setError(getErrorMessage(err, 'Failed to save user'))
     }
   }
 
@@ -103,6 +111,7 @@ export default function AdminUsers() {
       </div>
       
       {error && <div style={{ color: 'red', marginBottom: 12 }}>{error}</div>}
+      {notice && <div style={{ color: '#047857', marginBottom: 12 }}>{notice}</div>}
       
       <table width="100%" cellPadding="8" style={{ borderCollapse: "collapse", border: "1px solid #eee" }}>
         <thead>
@@ -154,16 +163,17 @@ export default function AdminUsers() {
         <UserModal
           user={editingUser}
           roles={roles}
-          onClose={() => { setShowModal(false); setError('') }}
+          onClose={() => { setShowModal(false); setError(''); setFieldErrors({}) }}
           onSave={handleSave}
           error={error}
+          fieldErrors={fieldErrors}
         />
       )}
     </div>
   )
 }
 
-function UserModal({ user, roles, onClose, onSave, error }) {
+function UserModal({ user, roles, onClose, onSave, error, fieldErrors }) {
   function handleSubmit(e) {
     e.preventDefault()
     onSave(new FormData(e.target))
@@ -203,6 +213,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               defaultValue={user?.email || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.email} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Username</label>
@@ -212,6 +223,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               defaultValue={user?.username || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.username} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>
@@ -223,6 +235,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               required={!user}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.password} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Full Name</label>
@@ -232,6 +245,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               defaultValue={user?.fullName || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.fullName} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Phone</label>
@@ -241,6 +255,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               defaultValue={user?.phone || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.phone} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Address</label>
@@ -250,6 +265,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
               defaultValue={user?.addressText || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.addressText} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Role *</label>
@@ -263,6 +279,7 @@ function UserModal({ user, roles, onClose, onSave, error }) {
                 <option key={role} value={role}>{role}</option>
               ))}
             </select>
+            <FieldError message={fieldErrors.role} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose}>Cancel</button>

@@ -3,7 +3,6 @@ package com.example.ecommerce.service;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -48,7 +47,113 @@ public class ReviewService {
     }
 
     public List<ReviewResponse> getProductReviews(Long productId) {
-        List<Review> reviews = reviewRepository.findByProductIdAndIsApprovedTrueOrderByCreatedAtDesc(productId);
+        return mapReviews(reviewRepository.findByProductIdAndIsApprovedTrueOrderByCreatedAtDesc(productId));
+    }
+
+    public List<ReviewResponse> getManagementReviews(Long productId) {
+        return mapReviews(reviewRepository.findByProductIdOrderByCreatedAtDesc(productId));
+    }
+
+    public PendingReviewCountResponse getPendingReviewCount() {
+        return new PendingReviewCountResponse(reviewRepository.countByIsApprovedFalse());
+    }
+
+    public List<PendingReviewByProductResponse> getPendingByProduct() {
+        List<Review> reviews = reviewRepository.findByIsApprovedFalseOrderByCreatedAtDesc();
+        if (reviews.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> counts = new HashMap<>();
+        for (Review review : reviews) {
+            counts.merge(review.getProductId(), 1L, Long::sum);
+        }
+
+        return counts.entrySet().stream()
+                .map(entry -> new PendingReviewByProductResponse(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    @Transactional
+    public ReviewMutationResponse createReview(Long productId, CreateReviewRequest request, User user) {
+        boolean eligible = orderRepository.hasDeliveredPaidItem(
+                user.getId(),
+                productId,
+                Order.OrderStatus.DELIVERED,
+                Order.PaymentStatus.PAID);
+        if (!eligible) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
+                    "Only delivered and paid orders can be reviewed");
+        }
+        if (reviewRepository.existsByUserIdAndProductId(user.getId(), productId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Bạn đã đánh giá sản phẩm này rồi.");
+        }
+
+        Review review = new Review();
+        review.setProductId(productId);
+        review.setUserId(user.getId());
+        review.setRating(request.rating());
+        review.setTitle(normalizeText(request.title()));
+        review.setBody(normalizeText(request.body()));
+        review.setIsApproved(false);
+
+        Review saved;
+        try {
+            saved = reviewRepository.save(review);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Bạn đã đánh giá sản phẩm này rồi.");
+        }
+
+        return new ReviewMutationResponse(
+                saved.getId(),
+                "Review submitted successfully and is pending approval.");
+    }
+
+    @Transactional
+    public ReviewMutationResponse moderateReview(Long reviewId, boolean approved) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+
+        review.setIsApproved(approved);
+        reviewRepository.save(review);
+        return new ReviewMutationResponse(
+                review.getId(),
+                approved ? "Review approved successfully" : "Review moved back to pending");
+    }
+
+    @Transactional
+    public ReviewMutationResponse deleteReview(Long reviewId) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+
+        reviewReplyRepository.deleteByReviewId(reviewId);
+        reviewRepository.delete(review);
+        return new ReviewMutationResponse(reviewId, "Review deleted successfully");
+    }
+
+    @Transactional
+    public ReviewMutationResponse replyToReview(Long reviewId, ReplyReviewRequest request, User staff) {
+        Review review = reviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found"));
+        if (!Boolean.TRUE.equals(review.getIsApproved())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Review must be approved before replying");
+        }
+
+        ReviewReply reply = reviewReplyRepository.findByReviewId(reviewId).orElseGet(() -> {
+            ReviewReply created = new ReviewReply();
+            created.setReviewId(reviewId);
+            return created;
+        });
+        reply.setStaffId(staff.getId());
+        reply.setBody(normalizeText(request.body()));
+
+        ReviewReply saved = reviewReplyRepository.save(reply);
+        return new ReviewMutationResponse(saved.getId(), "Reply posted successfully");
+    }
+
+    private List<ReviewResponse> mapReviews(List<Review> reviews) {
         if (reviews.isEmpty()) {
             return List.of();
         }
@@ -77,96 +182,6 @@ public class ReviewService {
                 .toList();
     }
 
-    public PendingReviewCountResponse getPendingReviewCount() {
-        long totalApproved = reviewRepository.countByIsApprovedTrue();
-        long totalReplies = reviewReplyRepository.countDistinctReviewId();
-        return new PendingReviewCountResponse(Math.max(0, totalApproved - totalReplies));
-    }
-
-    public List<PendingReviewByProductResponse> getPendingByProduct() {
-        List<Review> reviews = reviewRepository.findByIsApprovedTrueOrderByCreatedAtDesc();
-        if (reviews.isEmpty()) {
-            return List.of();
-        }
-
-        Set<Long> repliedIds = reviewReplyRepository.findByReviewIdIn(reviews.stream().map(Review::getId).toList())
-                .stream()
-                .map(ReviewReply::getReviewId)
-                .collect(Collectors.toSet());
-
-        Map<Long, Long> counts = new HashMap<>();
-        for (Review review : reviews) {
-            if (!repliedIds.contains(review.getId())) {
-                counts.merge(review.getProductId(), 1L, Long::sum);
-            }
-        }
-
-        return counts.entrySet().stream()
-                .map(entry -> new PendingReviewByProductResponse(entry.getKey(), entry.getValue()))
-                .toList();
-    }
-
-    @Transactional
-    public ReviewMutationResponse createReview(Long productId, CreateReviewRequest request, User user) {
-        boolean eligible = orderRepository.hasDeliveredPaidItem(
-                user.getId(),
-                productId,
-                Order.OrderStatus.DELIVERED,
-                Order.PaymentStatus.PAID);
-        if (!eligible) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN,
-                    "Only delivered and paid orders can be reviewed");
-        }
-        if (reviewRepository.existsByUserIdAndProductId(user.getId(), productId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Bạn đã đánh giá sản phẩm này rồi.");
-        }
-        validateCreateReviewRequest(request);
-
-        Review review = new Review();
-        review.setProductId(productId);
-        review.setUserId(user.getId());
-        review.setRating(request.rating());
-        review.setTitle(normalizeText(request.title()));
-        review.setBody(normalizeText(request.body()));
-        review.setIsApproved(true);
-
-        Review saved;
-        try {
-            saved = reviewRepository.save(review);
-        } catch (DataIntegrityViolationException ex) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Bạn đã đánh giá sản phẩm này rồi.");
-        }
-
-        return new ReviewMutationResponse(
-                saved.getId(),
-                "Review submitted successfully. It will be visible after approval.");
-    }
-
-    @Transactional
-    public ReviewMutationResponse replyToReview(Long reviewId, ReplyReviewRequest request, User staff) {
-        if (!reviewRepository.existsById(reviewId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Review not found");
-        }
-
-        String body = normalizeText(request.body());
-        if (body == null || body.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Reply body is required");
-        }
-
-        ReviewReply reply = reviewReplyRepository.findByReviewId(reviewId).orElseGet(() -> {
-            ReviewReply created = new ReviewReply();
-            created.setReviewId(reviewId);
-            return created;
-        });
-        reply.setStaffId(staff.getId());
-        reply.setBody(body);
-
-        ReviewReply saved = reviewReplyRepository.save(reply);
-        return new ReviewMutationResponse(saved.getId(), "Reply posted successfully");
-    }
-
     private ReviewResponse toReviewResponse(Review review, ReviewUserResponse user, ReviewReply reply) {
         return new ReviewResponse(
                 review.getId(),
@@ -181,18 +196,6 @@ public class ReviewService {
                 reply != null
                         ? new ReviewReplyResponse(reply.getId(), reply.getStaffId(), reply.getBody())
                         : null);
-    }
-
-    private void validateCreateReviewRequest(CreateReviewRequest request) {
-        if (request == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Review payload is required");
-        }
-        if (request.rating() == null || request.rating() < 1 || request.rating() > 5) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rating must be between 1 and 5");
-        }
-        if (normalizeText(request.body()) == null || normalizeText(request.body()).isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Review body is required");
-        }
     }
 
     private String normalizeText(String value) {

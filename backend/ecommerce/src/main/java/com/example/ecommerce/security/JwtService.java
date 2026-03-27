@@ -19,15 +19,29 @@ import jakarta.annotation.PostConstruct;
 public class JwtService {
 
     private final String secret;
+    private final long defaultTtlSeconds;
     private SecretKey key;
 
-    public JwtService(@Value("${app.jwt.secret:change-this-secret-to-64-bytes}") String secret) {
+    public JwtService(
+            @Value("${app.jwt.secret:change-this-secret-to-64-bytes}") String secret,
+            @Value("${app.jwt.ttl-seconds:604800}") long defaultTtlSeconds) {
         this.secret = secret;
+        this.defaultTtlSeconds = defaultTtlSeconds;
     }
 
     @PostConstruct
     public void initKey() {
+        if (secret == null || secret.length() < 32) {
+            throw new IllegalStateException("app.jwt.secret must be at least 32 characters");
+        }
+        if (defaultTtlSeconds <= 0) {
+            throw new IllegalStateException("app.jwt.ttl-seconds must be greater than 0");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes());
+    }
+
+    public String generate(User user) {
+        return generate(user, defaultTtlSeconds);
     }
 
     public String generate(User user, long ttlSeconds) {

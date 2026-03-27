@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-import { api } from '../lib/api.js'
+import { ProductsAPI, ReviewsAPI } from '../lib/api.js'
 
 export default function Product() {
   const { id } = useParams()
@@ -20,15 +20,15 @@ export default function Product() {
   async function loadProduct() {
     try {
       setLoading(true)
-      const p = await api(`/api/products/${id}`)
+      const p = await ProductsAPI.get(id)
       setProduct(p)
       // Fetch recommendations by categoryId
       if (p.categoryId) {
-        const list = await api(`/api/products?categoryId=${p.categoryId}`)
+        const list = await ProductsAPI.list({ categoryId: p.categoryId })
         const products = Array.isArray(list) ? list : []
         setRecs(products.filter(x => x.id !== p.id).slice(0, 8))
       } else {
-        const list = await api('/api/products?cat=all')
+        const list = await ProductsAPI.list({ cat: 'all' })
         const products = Array.isArray(list) ? list : []
         setRecs(products.filter(x => x.id !== p.id).slice(0, 8))
       }
@@ -41,7 +41,7 @@ export default function Product() {
 
   async function loadReviews() {
     try {
-      const data = await api(`/api/reviews/product/${id}`)
+      const data = await ReviewsAPI.listProduct(id)
       setReviews(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading reviews:', err)
@@ -242,7 +242,7 @@ export default function Product() {
               {recs.map(p => (
                 <article className="product-card" key={p.id}>
                   <Link className="card-link" to={`/product/${p.id}`}>
-                    <div className="product-media"><img src={p.image || p.imageUrl} alt={p.name} /></div>
+                    <div className="product-media"><img src={p.imageUrl} alt={p.name} /></div>
                     <h3>{p.name}</h3>
                     {p.descriptionShort && <p>{p.descriptionShort}</p>}
                     <div className="price">{Number(p.price).toLocaleString('vi-VN')}₫</div>

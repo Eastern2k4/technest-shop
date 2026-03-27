@@ -1,0 +1,6 @@
+.git
+.gitignore
+target
+test
+HELP.md
+*.log

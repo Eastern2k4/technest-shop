@@ -1,14 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import FieldError from '../components/FieldError.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { api, toAuthUser } from '../lib/api.js'
+import { AuthAPI, OrdersAPI, ReviewsAPI, getErrorMessage, getValidationErrors, isAuthenticatedProfile, toAuthUser } from '../lib/api.js'
 
 export default function Profile() {
-  const { user, setAuthUser } = useAuth()
+  const { user, setAuthUser, logout } = useAuth()
   const navigate = useNavigate()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const [success, setSuccess] = useState(null)
   const [profile, setProfile] = useState(null)
   const [editing, setEditing] = useState(false)
@@ -30,6 +32,7 @@ export default function Profile() {
   const [openOrderId, setOpenOrderId] = useState(null)
   const [reviewTarget, setReviewTarget] = useState(null)
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' })
+  const [reviewErrors, setReviewErrors] = useState({})
   const [reviewLoading, setReviewLoading] = useState(false)
 
   useEffect(() => {
@@ -44,7 +47,11 @@ export default function Profile() {
     try {
       setLoading(true)
       setError(null)
-      const data = await api('/api/auth/me')
+      const data = await AuthAPI.me()
+      if (!isAuthenticatedProfile(data)) {
+        logout()
+        return
+      }
       setProfile(data)
       setFormData({
         fullName: data.fullName || '',
@@ -57,8 +64,11 @@ export default function Profile() {
         confirmPassword: ''
       })
     } catch (err) {
-      console.error('Error loading profile:', err)
-      setError(err.message || 'Failed to load profile')
+      if (err?.status === 401) {
+        logout()
+        return
+      }
+      setError(getErrorMessage(err, 'Failed to load profile'))
     } finally {
       setLoading(false)
     }
@@ -69,11 +79,14 @@ export default function Profile() {
     try {
       setOrderError(null)
       setLoadingOrders(true)
-      const data = await api('/api/orders/me')
+      const data = await OrdersAPI.mine()
       setOrders(Array.isArray(data) ? data : [])
     } catch (err) {
-      console.error('Error loading orders:', err)
-      setOrderError('Không thể tải đơn hàng')
+      if (err?.status === 401) {
+        logout()
+        return
+      }
+      setOrderError(getErrorMessage(err, 'Không thể tải đơn hàng'))
     } finally {
       setLoadingOrders(false)
     }
@@ -82,33 +95,29 @@ export default function Profile() {
   async function markDelivered(orderId) {
     try {
       setOrderError(null)
-      await api(`/api/orders/${orderId}/status`, {
-        method: 'PUT',
-        body: { status: 'DELIVERED' }
-      })
+      await OrdersAPI.updateStatus(orderId, { status: 'DELIVERED' })
       await loadOrders()
     } catch (err) {
-      console.error('Error updating order status:', err)
-      setOrderError(err.message || 'Không thể cập nhật trạng thái đơn hàng')
+      setOrderError(getErrorMessage(err, 'Không thể cập nhật trạng thái đơn hàng'))
     }
   }
 
   async function submitReview(productId) {
     if (!reviewForm.body.trim()) {
       setOrderError('Vui lòng nhập nội dung đánh giá')
+      setReviewErrors({ body: 'Vui lòng nhập nội dung đánh giá' })
       return
     }
     try {
       setReviewLoading(true)
-      await api(`/api/reviews/product/${productId}`, {
-        method: 'POST',
-        body: reviewForm
-      })
-      setSuccess('Đánh giá đã được gửi thành công!')
+      setReviewErrors({})
+      const response = await ReviewsAPI.create(productId, reviewForm)
+      setSuccess(response?.message || 'Đánh giá đã được gửi thành công!')
       setReviewTarget(null)
       setReviewForm({ rating: 5, title: '', body: '' })
     } catch (err) {
-      setOrderError(err.message || 'Không thể gửi đánh giá')
+      setReviewErrors(getValidationErrors(err))
+      setOrderError(getErrorMessage(err, 'Không thể gửi đánh giá'))
     } finally {
       setReviewLoading(false)
     }
@@ -138,6 +147,7 @@ export default function Profile() {
 
   function cancelEdit() {
     setEditing(false)
+      setFieldErrors({})
       setFormData({
         fullName: profile?.fullName || '',
         username: profile?.username || profile?.email || '',
@@ -148,14 +158,15 @@ export default function Profile() {
         newPassword: '',
         confirmPassword: ''
       })
-    setError(null)
-    setSuccess(null)
+      setError(null)
+      setSuccess(null)
   }
 
   async function saveProfile(e) {
     e.preventDefault()
     try {
       setError(null)
+      setFieldErrors({})
       setSuccess(null)
 
       if (formData.newPassword) {
@@ -191,17 +202,7 @@ export default function Profile() {
         updates.newPassword = formData.newPassword
       }
 
-      console.log('[Profile] Sending update request:', { 
-        ...updates, 
-        avatarUrl: updates.avatarUrl ? updates.avatarUrl.substring(0, 50) + '...' : null 
-      })
-      
-      const response = await api('/api/auth/me', {
-        method: 'PUT',
-        body: updates
-      })
-
-      console.log('[Profile] Update response:', response)
+      const response = await AuthAPI.updateProfile(updates)
 
       setAuthUser(toAuthUser({
         ...response,
@@ -213,20 +214,8 @@ export default function Profile() {
       await loadProfile()
       setEditing(false)
     } catch (err) {
-      console.error('[Profile] Error saving profile:', err)
-      console.error('[Profile] Error details:', {
-        message: err.message,
-        stack: err.stack,
-        response: err.response
-      })
-      
-      // Extract error message from response if available
-      let errorMessage = err.message || 'Failed to update profile'
-      if (errorMessage.includes('<!doctype html>')) {
-        errorMessage = 'Server error occurred. Please check backend logs for details.'
-      }
-      
-      setError(errorMessage)
+      setFieldErrors(getValidationErrors(err))
+      setError(getErrorMessage(err, 'Failed to update profile'))
     }
   }
 
@@ -450,6 +439,7 @@ export default function Profile() {
                   style={{ width: '100%', maxWidth: 400, margin: '0 auto', display: 'block' }}
                   placeholder="https://example.com/avatar.jpg"
                 />
+                <FieldError message={fieldErrors.avatarUrl} />
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
@@ -465,6 +455,7 @@ export default function Profile() {
                     className="input"
                     style={{ width: '100%' }}
                   />
+                  <FieldError message={fieldErrors.fullName} />
                 </div>
 
                 <div>
@@ -479,6 +470,7 @@ export default function Profile() {
                     className="input"
                     style={{ width: '100%' }}
                   />
+                  <FieldError message={fieldErrors.username} />
                 </div>
               </div>
 
@@ -511,6 +503,7 @@ export default function Profile() {
                     style={{ width: '100%' }}
                     placeholder="0123456789"
                   />
+                  <FieldError message={fieldErrors.phone} />
                 </div>
 
                 <div>
@@ -538,6 +531,7 @@ export default function Profile() {
                   style={{ width: '100%', minHeight: 80, resize: 'vertical' }}
                   placeholder="Enter your full address"
                 />
+                <FieldError message={fieldErrors.addressText} />
               </div>
 
               <div style={{
@@ -562,6 +556,7 @@ export default function Profile() {
                       placeholder="Leave empty if not changing"
                       minLength={6}
                     />
+                    <FieldError message={fieldErrors.newPassword} />
                   </div>
 
                   <div>
@@ -729,6 +724,7 @@ export default function Profile() {
                                     <option value={2}>2 sao - Không tốt</option>
                                     <option value={1}>1 sao - Rất tệ</option>
                                   </select>
+                                  <FieldError message={reviewErrors.rating} />
                                 </div>
                                 <div style={{ marginBottom: 8 }}>
                                   <label style={{ display: 'block', marginBottom: 4 }}>Tiêu đề</label>
@@ -738,6 +734,7 @@ export default function Profile() {
                                     onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
                                     placeholder="Tóm tắt đánh giá"
                                   />
+                                  <FieldError message={reviewErrors.title} />
                                 </div>
                                 <div style={{ marginBottom: 8 }}>
                                   <label style={{ display: 'block', marginBottom: 4 }}>Nội dung đánh giá</label>
@@ -748,6 +745,7 @@ export default function Profile() {
                                     onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
                                     placeholder="Chia sẻ trải nghiệm của bạn"
                                   />
+                                  <FieldError message={reviewErrors.body} />
                                 </div>
                                 <div style={{ display: 'flex', gap: 8 }}>
                                   <button

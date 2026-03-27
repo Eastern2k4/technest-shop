@@ -1,27 +1,31 @@
 package com.example.ecommerce.config;
 
+import java.io.IOException;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 
+import com.example.ecommerce.dto.ApiErrorResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.ecommerce.security.JwtAuthFilter;
 import com.example.ecommerce.user.UserRepository;
-
-import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableWebSecurity
@@ -29,18 +33,25 @@ import jakarta.servlet.http.HttpServletResponse;
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final ObjectMapper objectMapper;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, ObjectMapper objectMapper) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.objectMapper = objectMapper;
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http,
-            AuthenticationProvider authProvider) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable());
         http.cors(Customizer.withDefaults());
+        http.headers(headers -> {
+            headers.contentTypeOptions(Customizer.withDefaults());
+            headers.frameOptions(frame -> frame.deny());
+            headers.referrerPolicy(policy -> policy.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER));
+            headers.permissionsPolicy(policy -> policy.policy("camera=(), geolocation=(), microphone=()"));
+            headers.cacheControl(Customizer.withDefaults());
+        });
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-        http.authenticationProvider(authProvider);
         http.authorizeHttpRequests(auth -> auth
                 // ----- Public GET endpoints (must come first) -----
                 .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
@@ -51,7 +62,7 @@ public class SecurityConfig {
 
                 // ----- Other public endpoints -----
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/health", "/actuator/**").permitAll()
+                .requestMatchers("/health", "/actuator/health", "/actuator/health/**").permitAll()
                 .requestMatchers("/api/auth/login").permitAll()
                 .requestMatchers("/api/auth/register").permitAll()
 
@@ -80,26 +91,14 @@ public class SecurityConfig {
                 .anyRequest().authenticated());
 
         http.exceptionHandling(e -> e
-                .authenticationEntryPoint((req, res, ex) -> {
-                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                    res.setContentType("application/json");
-                    res.setCharacterEncoding("UTF-8");
-                    try {
-                        res.getWriter().write("{\"message\":\"Authentication required. Please log in again.\"}");
-                    } catch (java.io.IOException ioEx) {
-                        // Fallback
-                    }
-                })
-                .accessDeniedHandler((req, res, ex) -> {
-                    res.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                    res.setContentType("application/json");
-                    res.setCharacterEncoding("UTF-8");
-                    try {
-                        res.getWriter().write("{\"message\":\"You do not have permission to perform this action.\"}");
-                    } catch (java.io.IOException ioEx) {
-                        // Fallback
-                    }
-                }));
+                .authenticationEntryPoint((req, res, ex) -> writeErrorResponse(
+                        res,
+                        HttpStatus.UNAUTHORIZED,
+                        "Authentication required. Please log in again."))
+                .accessDeniedHandler((req, res, ex) -> writeErrorResponse(
+                        res,
+                        HttpStatus.FORBIDDEN,
+                        "You do not have permission to perform this action.")));
 
         http.addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
@@ -107,8 +106,8 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService userDetailsService(UserRepository repo) {
-        return username -> repo.findByEmail(username)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        return username -> repo.findByEmailIgnoreCase(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     @Bean
@@ -117,15 +116,22 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationProvider authenticationProvider(UserDetailsService uds, PasswordEncoder pe) {
-        DaoAuthenticationProvider p = new DaoAuthenticationProvider();
-        p.setUserDetailsService(uds);
-        p.setPasswordEncoder(pe);
-        return p;
+    public AuthenticationManager authenticationManager(UserDetailsService uds, PasswordEncoder pe) {
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(uds);
+        provider.setPasswordEncoder(pe);
+        return new ProviderManager(provider);
     }
 
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration cfg) throws Exception {
-        return cfg.getAuthenticationManager();
+    private void writeErrorResponse(
+            jakarta.servlet.http.HttpServletResponse res,
+            HttpStatus status,
+            String message) throws IOException {
+        res.setStatus(status.value());
+        res.setContentType("application/json");
+        res.setCharacterEncoding("UTF-8");
+        objectMapper.writeValue(
+                res.getWriter(),
+                new ApiErrorResponse(message, status.value(), status.getReasonPhrase()));
     }
 }

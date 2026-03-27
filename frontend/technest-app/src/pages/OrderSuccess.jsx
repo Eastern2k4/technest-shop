@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext.jsx'
-import { api } from '../lib/api.js'
+import { OrdersAPI, getErrorMessage } from '../lib/api.js'
 
 export default function OrderSuccess() {
   const { id } = useParams()
@@ -25,11 +25,11 @@ export default function OrderSuccess() {
       return
     }
 
-    api(`/api/orders/${id}`)
+    OrdersAPI.get(id)
       .then(data => setOrder(data))
       .catch(err => {
         console.error('Error fetching order:', err)
-        setError(err.message || 'Không thể tải thông tin đơn hàng')
+        setError(getErrorMessage(err, 'Không thể tải thông tin đơn hàng'))
       })
       .finally(() => setLoading(false))
   }, [id, isAuthenticated, user])

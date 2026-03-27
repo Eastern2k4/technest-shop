@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 public interface ReviewReplyRepository extends JpaRepository<ReviewReply, Long> {
     Optional<ReviewReply> findByReviewId(Long reviewId);
     List<ReviewReply> findByReviewIdIn(List<Long> reviewIds);
+    void deleteByReviewId(Long reviewId);
     @Query("select count(distinct r.reviewId) from ReviewReply r")
     long countDistinctReviewId();
 }

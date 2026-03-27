@@ -2,10 +2,13 @@
 package com.example.ecommerce.service;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,154 +30,64 @@ public class ProductService {
 
     /** List có filter theo categoryId, q (search theo name), price range, và brand */
     public Page<Product> list(Long categoryId, String q, BigDecimal minPrice, BigDecimal maxPrice, String brand, Pageable pageable) {
-        // Get base result set - fetch larger page to allow filtering
-        Pageable largePage = org.springframework.data.domain.PageRequest.of(0, 10000, pageable.getSort());
-        Page<Product> result;
-        
-        // Priority: categoryId > text search > all products
+        return productRepo.findAll(buildSpecification(categoryId, q, minPrice, maxPrice, brand), pageable);
+    }
+
+    private Specification<Product> buildSpecification(
+            Long categoryId,
+            String q,
+            BigDecimal minPrice,
+            BigDecimal maxPrice,
+            String brand) {
+        Specification<Product> spec = Specification.where(null);
+
         if (categoryId != null) {
-            result = productRepo.findAllByCategoryId(categoryId, largePage);
-        } else if (q != null && !q.isBlank()) {
-            result = productRepo.findByNameContainingIgnoreCase(q, largePage);
-        } else {
-            result = productRepo.findAll(largePage);
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("categoryId"), categoryId));
         }
-        
-        // Apply all filters in memory
-        List<Product> filtered = new java.util.ArrayList<>(result.getContent());
-        
-        // Apply text search if category is specified (combine filters)
-        if (q != null && !q.isBlank() && categoryId != null) {
-            String queryLower = q.toLowerCase();
-            filtered = filtered.stream()
-                .filter(p -> p.getName().toLowerCase().contains(queryLower))
-                .toList();
+        if (q != null && !q.isBlank()) {
+            String pattern = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), pattern));
         }
-        
-        // Apply price range filter
-        if (minPrice != null || maxPrice != null) {
-            filtered = filtered.stream()
-                .filter(p -> {
-                    if (minPrice != null && p.getPrice().compareTo(minPrice) < 0) {
-                        return false;
-                    }
-                    if (maxPrice != null && p.getPrice().compareTo(maxPrice) > 0) {
-                        return false;
-                    }
-                    return true;
-                })
-                .toList();
+        if (minPrice != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
         }
-        
-        // Apply brand filter (extract from product name)
+        if (maxPrice != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
+        }
         if (brand != null && !brand.isBlank()) {
-            String brandLower = brand.toLowerCase();
-            filtered = filtered.stream()
-                .filter(p -> {
-                    String name = p.getName().toLowerCase();
-                    // Check if product matches the brand
-                    return matchesBrand(name, brandLower);
-                })
-                .toList();
+            List<String> brandKeywords = brandKeywords(brand);
+            spec = spec.and((root, query, cb) -> {
+                List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
+                for (String keyword : brandKeywords) {
+                    predicates.add(cb.like(cb.lower(root.get("name")), "%" + keyword + "%"));
+                }
+                return cb.or(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
+            });
         }
-        
-        // Convert filtered list back to Page
-        // Calculate pagination with safety checks
-        int start = (int) pageable.getOffset();
-        int end = Math.min((start + pageable.getPageSize()), filtered.size());
-        
-        if (start >= filtered.size() || filtered.isEmpty()) {
-            return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
-        }
-        
-        List<Product> pagedContent = filtered.subList(start, end);
-        
-        return new org.springframework.data.domain.PageImpl<>(pagedContent, pageable, filtered.size());
+
+        return spec;
     }
-    
-    /** Check if product name matches the given brand */
-    private boolean matchesBrand(String productNameLower, String brandLower) {
-        // Direct brand name match
-        if (productNameLower.contains(brandLower) || 
-            productNameLower.startsWith(brandLower + " ")) {
-            return true;
-        }
-        
-        // Brand-specific product patterns
+
+    private List<String> brandKeywords(String brand) {
+        String brandLower = brand.trim().toLowerCase(Locale.ROOT);
+        List<String> keywords = new ArrayList<>();
+        keywords.add(brandLower);
+
         switch (brandLower) {
-            case "apple":
-                // Apple products: iPhone, iPad, MacBook, AirPods, Apple Watch, iMac, etc.
-                return productNameLower.contains("iphone") ||
-                       productNameLower.contains("ipad") ||
-                       productNameLower.contains("macbook") ||
-                       productNameLower.contains("airpods") ||
-                       productNameLower.contains("apple watch") ||
-                       productNameLower.contains("imac") ||
-                       productNameLower.contains("mac pro") ||
-                       productNameLower.contains("mac mini");
-            
-            case "samsung":
-                return productNameLower.contains("samsung") ||
-                       productNameLower.contains("galaxy");
-            
-            case "xiaomi":
-                return productNameLower.contains("xiaomi") ||
-                       productNameLower.contains("redmi") ||
-                       productNameLower.contains("mi ");
-            
-            case "asus":
-                return productNameLower.contains("asus") ||
-                       productNameLower.contains("rog") ||
-                       productNameLower.contains("tuf");
-            
-            case "hp":
-                return productNameLower.contains("hp ") ||
-                       productNameLower.contains("hp spectre") ||
-                       productNameLower.contains("hp pavilion") ||
-                       productNameLower.contains("hp envy") ||
-                       productNameLower.startsWith("hp");
-            
-            case "lg":
-                return productNameLower.contains("lg ") ||
-                       productNameLower.contains("ultragear") ||
-                       productNameLower.startsWith("lg");
-            
-            case "sony":
-                return productNameLower.contains("sony") ||
-                       productNameLower.contains("wh-");
-            
-            case "razer":
-                return productNameLower.contains("razer") ||
-                       productNameLower.contains("blackshark");
-            
-            case "logitech":
-                return productNameLower.contains("logitech") ||
-                       productNameLower.contains("mx master");
-            
-            default:
-                // For other brands, check if brand name appears in product name
-                return productNameLower.contains(brandLower);
-        }
-    }
-    
-    /** Extract brand from product name (simple heuristic) */
-    private String extractBrandFromName(String name) {
-        // Common brands to check
-        String[] brands = {"apple", "samsung", "xiaomi", "oppo", "vivo", "realme", 
-                          "huawei", "sony", "lg", "asus", "acer", "dell", "hp", 
-                          "lenovo", "msi", "razer", "logitech", "jbl", "bose"};
-        String nameLower = name.toLowerCase();
-        for (String b : brands) {
-            if (nameLower.startsWith(b + " ") || nameLower.contains(" " + b + " ")) {
-                return b;
+            case "apple" -> keywords.addAll(List.of("iphone", "ipad", "macbook", "airpods", "apple watch", "imac", "mac pro", "mac mini"));
+            case "samsung" -> keywords.add("galaxy");
+            case "xiaomi" -> keywords.addAll(List.of("redmi", "mi "));
+            case "asus" -> keywords.addAll(List.of("rog", "tuf"));
+            case "hp" -> keywords.addAll(List.of("hp ", "hp spectre", "hp pavilion", "hp envy"));
+            case "lg" -> keywords.addAll(List.of("lg ", "ultragear"));
+            case "sony" -> keywords.add("wh-");
+            case "razer" -> keywords.add("blackshark");
+            case "logitech" -> keywords.add("mx master");
+            default -> {
             }
         }
-        // Check for Apple products
-        if (nameLower.contains("iphone") || nameLower.contains("ipad") || 
-            nameLower.contains("macbook") || nameLower.contains("airpods")) {
-            return "apple";
-        }
-        return "";
+
+        return keywords.stream().distinct().toList();
     }
 
     /** Lấy 1 sản phẩm, 404 nếu không có */

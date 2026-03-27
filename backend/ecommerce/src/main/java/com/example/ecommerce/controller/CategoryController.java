@@ -2,6 +2,8 @@ package com.example.ecommerce.controller;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -49,7 +51,7 @@ public class CategoryController {
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CategoryDTO create(@RequestBody CategoryDTO dto) {
+    public CategoryDTO create(@RequestBody @Valid CategoryDTO dto) {
         String name = safeName(dto.name());
         categoryRepo.findByNameIgnoreCase(name).ifPresent(x -> {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Category already exists: " + name);
@@ -62,7 +64,7 @@ public class CategoryController {
 
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @PutMapping("/{id}")
-    public CategoryDTO update(@PathVariable Long id, @RequestBody CategoryDTO dto) {
+    public CategoryDTO update(@PathVariable Long id, @RequestBody @Valid CategoryDTO dto) {
         Category c = categoryRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Category not found: " + id));
 

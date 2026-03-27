@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
-import { useAuth } from '../../context/AuthContext.jsx'
-import { api } from '../../lib/api.js'
+import FieldError from '../../components/FieldError.jsx'
+import { CategoriesAPI, ProductsAPI, getErrorMessage, getValidationErrors } from '../../lib/api.js'
 
 export default function AdminProducts() {
-  const { authHeader } = useAuth()
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [showModal, setShowModal] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
   const [categories, setCategories] = useState([])
@@ -20,7 +21,7 @@ export default function AdminProducts() {
 
   async function loadCategories() {
     try {
-      const data = await api('/api/categories')
+      const data = await CategoriesAPI.list()
       setCategories(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading categories:', err)
@@ -31,10 +32,10 @@ export default function AdminProducts() {
     try {
       setLoading(true)
       setError('')
-      const data = await api('/api/products?cat=all')
+      const data = await ProductsAPI.list({ cat: 'all' })
       setProducts(Array.isArray(data) ? data : [])
     } catch (err) {
-      setError(err.message || 'Failed to load products')
+      setError(getErrorMessage(err, 'Failed to load products'))
     } finally {
       setLoading(false)
     }
@@ -66,11 +67,15 @@ export default function AdminProducts() {
 
   function handleNew() {
     setEditingProduct(null)
+    setNotice('')
+    setFieldErrors({})
     setShowModal(true)
   }
 
   function handleEdit(product) {
     setEditingProduct(product)
+    setNotice('')
+    setFieldErrors({})
     setShowModal(true)
   }
 
@@ -78,16 +83,21 @@ export default function AdminProducts() {
     if (!confirm('Are you sure you want to delete this product?')) return
     
     try {
-      await api(`/api/products/${id}`, { method: 'DELETE' })
-      loadProducts()
+      await ProductsAPI.remove(id)
+      setError('')
+      setNotice('Product deleted successfully.')
+      await loadProducts()
     } catch (err) {
-      alert('Failed to delete product: ' + err.message)
+      setNotice('')
+      setError(getErrorMessage(err, 'Failed to delete product'))
     }
   }
 
   async function handleSave(formData) {
     try {
       setError('')
+      setNotice('')
+      setFieldErrors({})
       const payload = {
         name: formData.get('name'),
         price: parseFloat(formData.get('price')),
@@ -99,21 +109,17 @@ export default function AdminProducts() {
       }
 
       if (editingProduct) {
-        await api(`/api/products/${editingProduct.id}`, {
-          method: 'PUT',
-          body: payload
-        })
+        await ProductsAPI.update(editingProduct.id, payload)
       } else {
-        await api('/api/products', {
-          method: 'POST',
-          body: payload
-        })
+        await ProductsAPI.create(payload)
       }
       
       setShowModal(false)
-      loadProducts()
+      setNotice(editingProduct ? 'Product updated successfully.' : 'Product created successfully.')
+      await loadProducts()
     } catch (err) {
-      setError(err.message || 'Failed to save product')
+      setFieldErrors(getValidationErrors(err))
+      setError(getErrorMessage(err, 'Failed to save product'))
     }
   }
 
@@ -134,6 +140,7 @@ export default function AdminProducts() {
       </div>
       
       {error && <div style={{ color: 'red', marginBottom: 12 }}>{error}</div>}
+      {notice && <div style={{ color: '#047857', marginBottom: 12 }}>{notice}</div>}
       
       <table width="100%" cellPadding="8" style={{ borderCollapse: "collapse", border: "1px solid #eee" }}>
         <thead>
@@ -189,16 +196,17 @@ export default function AdminProducts() {
         <ProductModal
           product={editingProduct}
           categories={categories}
-          onClose={() => { setShowModal(false); setError('') }}
+          onClose={() => { setShowModal(false); setError(''); setFieldErrors({}) }}
           onSave={handleSave}
           error={error}
+          fieldErrors={fieldErrors}
         />
       )}
     </div>
   )
 }
 
-function ProductModal({ product, categories, onClose, onSave, error }) {
+function ProductModal({ product, categories, onClose, onSave, error, fieldErrors }) {
   function handleSubmit(e) {
     e.preventDefault()
     onSave(new FormData(e.target))
@@ -238,6 +246,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.name || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.name} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Price *</label>
@@ -249,6 +258,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.price || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.price} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Image URL</label>
@@ -258,6 +268,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.imageUrl || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.imageUrl} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Category</label>
@@ -271,6 +282,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
+            <FieldError message={fieldErrors.categoryId} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Quantity</label>
@@ -281,6 +293,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.quantity || 0}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.quantity} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Short Description</label>
@@ -290,6 +303,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.descriptionShort || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.descriptionShort} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Long Description</label>
@@ -299,6 +313,7 @@ function ProductModal({ product, categories, onClose, onSave, error }) {
               defaultValue={product?.descriptionLong || ''}
               style={{ width: '100%', padding: 8 }}
             />
+            <FieldError message={fieldErrors.descriptionLong} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
             <button type="button" onClick={onClose}>Cancel</button>

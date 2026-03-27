@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api.js'
+import { OrdersAPI, getErrorMessage } from '../../lib/api.js'
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
@@ -10,50 +10,27 @@ export default function AdminOrders() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [search, setSearch] = useState('')
+  const [detailsLoadingId, setDetailsLoadingId] = useState(null)
 
   useEffect(() => {
     loadOrders()
   }, [])
 
-  async function loadOrders() {
+  async function loadOrders(nextFilters = {}) {
     try {
       setLoading(true)
       setError('')
-      const params = new URLSearchParams()
-      if (statusFilter) params.set('status', statusFilter)
-      if (dateFrom) params.set('from', dateFrom)
-      if (dateTo) params.set('to', dateTo)
-      if (search.trim()) params.set('q', search.trim())
-      const qs = params.toString()
-      const data = await api(`/api/orders${qs ? `?${qs}` : ''}`)
-      // BE trả list<Map<String,Object>>: id, orderNumber, customerName, customerEmail,
-      // total, status, paymentStatus, paymentMethod, placedAt
-      const list = Array.isArray(data) ? data : []
-      const q = search.trim().toLowerCase()
-      const from = dateFrom ? new Date(`${dateFrom}T00:00:00`) : null
-      const to = dateTo ? new Date(`${dateTo}T23:59:59.999`) : null
-      const filtered = list.filter(o => {
-        if (statusFilter && o.status !== statusFilter) return false
-        if (from || to) {
-          if (!o.placedAt) return false
-          const d = new Date(o.placedAt)
-          if (from && d < from) return false
-          if (to && d > to) return false
-        }
-        if (q) {
-          const orderNumber = (o.orderNumber || '').toString().toLowerCase()
-          const name = (o.customerName || '').toString().toLowerCase()
-          const email = (o.customerEmail || '').toString().toLowerCase()
-          if (!orderNumber.includes(q) && !name.includes(q) && !email.includes(q)) {
-            return false
-          }
-        }
-        return true
-      })
-      setOrders(filtered)
+      const filters = {
+        status: nextFilters.status ?? statusFilter,
+        from: nextFilters.from ?? dateFrom,
+        to: nextFilters.to ?? dateTo,
+        q: nextFilters.q ?? search.trim(),
+      }
+      const data = await OrdersAPI.list(filters)
+      setOrders(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Failed to load orders', err)
-      setError(err.message || 'Failed to load orders')
+      setError(getErrorMessage(err, 'Failed to load orders'))
     } finally {
       setLoading(false)
     }
@@ -63,13 +40,15 @@ export default function AdminOrders() {
 
   async function loadOrderDetails(id) {
     try {
-      const order = await api(`/api/orders/${id}`)
-      // BE nên trả: id, orderNumber, customerEmail, customerName,
-      // items[], subtotal, shipping, total, paymentMethod, status, paymentStatus,...
+      setDetailsLoadingId(id)
+      setError('')
+      const order = await OrdersAPI.get(id)
       setSelectedOrder(order)
     } catch (err) {
       console.error('Failed to load order details', err)
-      alert('Failed to load order details: ' + (err.message || 'Unknown error'))
+      setError(getErrorMessage(err, 'Failed to load order details'))
+    } finally {
+      setDetailsLoadingId(null)
     }
   }
 
@@ -139,7 +118,7 @@ export default function AdminOrders() {
               setDateFrom('')
               setDateTo('')
               setSearch('')
-              setTimeout(loadOrders, 0)
+              setTimeout(() => loadOrders({ status: '', from: '', to: '', q: '' }), 0)
             }}
           >
             Reset
@@ -180,8 +159,8 @@ export default function AdminOrders() {
                 <td>{o.paymentStatus}</td>
                 <td>{o.paymentMethod?.toUpperCase() || 'COD'}</td>
                 <td>
-                  <button onClick={() => loadOrderDetails(o.id)}>
-                    View Details
+                  <button onClick={() => loadOrderDetails(o.id)} disabled={detailsLoadingId === o.id}>
+                    {detailsLoadingId === o.id ? 'Loading...' : 'View Details'}
                   </button>
                 </td>
               </tr>

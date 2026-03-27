@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import FieldError from '../components/FieldError.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
-import { AuthAPI, toAuthUser } from '../lib/api.js'
+import { AuthAPI, getErrorMessage, getValidationErrors, isAuthenticatedProfile, toAuthUser } from '../lib/api.js'
 
 export default function SignUp() {
   const { login } = useAuth()
@@ -10,6 +11,7 @@ export default function SignUp() {
   const [searchParams] = useSearchParams()
   const returnTo = searchParams.get('returnTo') || location.state?.returnTo
   const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -17,6 +19,7 @@ export default function SignUp() {
     e.preventDefault()
     if (loading) return
     setError('')
+    setFieldErrors({})
     setSuccess('')
     setLoading(true)
 
@@ -33,8 +36,9 @@ export default function SignUp() {
 
       if (data && data.token) {
         const me = await AuthAPI.me(data.token)
-        if (!me) throw new Error('Phản hồi profile rỗng.')
-        if (me.authenticated === false) throw new Error('Chưa xác thực người dùng.')
+        if (!isAuthenticatedProfile(me)) {
+          throw new Error('Không thể xác thực hồ sơ người dùng sau khi đăng ký.')
+        }
 
         login(toAuthUser(me, data.token), returnTo)
       } else {
@@ -50,7 +54,8 @@ export default function SignUp() {
       }
 
     } catch (err) {
-      setError(err.message || 'Đăng ký thất bại')
+      setFieldErrors(getValidationErrors(err))
+      setError(getErrorMessage(err, 'Đăng ký thất bại'))
     } finally {
       setLoading(false)
     }
@@ -72,9 +77,11 @@ export default function SignUp() {
           <form className="form" onSubmit={onSubmit} noValidate>
             <label className="form-label">Full name
               <input className="input" name="name" type="text" placeholder="Enter your full name" required disabled={loading} autoComplete="name" />
+              <FieldError message={fieldErrors.fullName} />
             </label>
             <label className="form-label">Email
               <input className="input" name="email" type="email" placeholder="Enter your email address" required disabled={loading} autoComplete="email" />
+              <FieldError message={fieldErrors.email} />
             </label>
             <label className="form-label">Password (min 6 characters)
               <div className="password-field">
@@ -84,6 +91,7 @@ export default function SignUp() {
                   if (el) el.type = el.type==='password'?'text':'password'
                 }} aria-label="Toggle password visibility">👁️</button>
               </div>
+              <FieldError message={fieldErrors.password} />
             </label>
             <button className="btn-primary full" type="submit" disabled={loading}>
               {loading ? 'Đang tạo tài khoản...' : 'Sign Up'}

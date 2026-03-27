@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../lib/api.js'
+import { OrdersAPI, ProductsAPI } from '../lib/api.js'
 
 const RESPONSES = {
   'hello': 'Xin chào! Tôi là chatbot hỗ trợ của TechNest. Tôi có thể giúp bạn với:\n• Thông tin sản phẩm\n• Hướng dẫn đặt hàng\n• Theo dõi đơn hàng\n• Chính sách đổi trả\n• Hỗ trợ kỹ thuật\n\nBạn cần hỗ trợ gì?',
@@ -41,14 +41,8 @@ export default function ChatbotWithHistory() {
 
   async function loadProducts() {
     try {
-      const data = await api('/api/products?size=1000')
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.content)
-          ? data.content
-          : Array.isArray(data?.data?.content)
-            ? data.data.content
-            : []
+      const data = await ProductsAPI.list({ cat: 'all' })
+      const list = Array.isArray(data) ? data : []
       setProducts(list)
     } catch (err) {
       console.error('Error loading products for chatbot:', err)
@@ -188,7 +182,7 @@ export default function ChatbotWithHistory() {
         return 'Bạn cần đăng nhập để xem trạng thái và lịch sử đơn hàng. Vào /signin để đăng nhập nhé.'
       }
       try {
-        const orders = await api('/api/orders/me')
+        const orders = await OrdersAPI.mine()
         if (!Array.isArray(orders) || orders.length === 0) {
           return 'Bạn chưa có đơn hàng nào.'
         }
@@ -210,14 +204,8 @@ export default function ChatbotWithHistory() {
     const getProductList = async () => {
       if (products.length) return products
       try {
-        const data = await api('/api/products?size=1000')
-        const list = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.content)
-            ? data.content
-            : Array.isArray(data?.data?.content)
-              ? data.data.content
-              : []
+        const data = await ProductsAPI.list({ cat: 'all' })
+        const list = Array.isArray(data) ? data : []
         if (list.length) setProducts(list)
         return list
       } catch {
@@ -334,7 +322,7 @@ export default function ChatbotWithHistory() {
         return 'Bạn cần đăng nhập để xem trạng thái và lịch sử đơn hàng. Vào /signin để đăng nhập nhé.'
       }
       try {
-        const orders = await api('/api/orders/me')
+        const orders = await OrdersAPI.mine()
         if (!Array.isArray(orders) || orders.length === 0) {
           return 'Bạn chưa có đơn hàng nào.'
         }

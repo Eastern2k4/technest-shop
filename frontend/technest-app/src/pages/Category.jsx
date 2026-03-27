@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-import { api } from '../lib/api.js'
+import { ProductsAPI, getErrorMessage } from '../lib/api.js'
 
 export default function Category() {
   const { cat } = useParams()
@@ -21,15 +21,14 @@ export default function Category() {
     try {
       setLoading(true)
       setError(null)
-      const params = new URLSearchParams()
-      params.set('cat', cat)
-      if (appliedFilters.q) params.set('q', appliedFilters.q)
-      if (appliedFilters.minPrice) params.set('minPrice', appliedFilters.minPrice)
-      if (appliedFilters.maxPrice) params.set('maxPrice', appliedFilters.maxPrice)
-      if (appliedFilters.brand) params.set('brand', appliedFilters.brand)
-
-      const data = await api(`/api/products?${params.toString()}`)
-      let products = Array.isArray(data) ? data : (data.content || [])
+      const data = await ProductsAPI.list({
+        cat,
+        q: appliedFilters.q,
+        minPrice: appliedFilters.minPrice,
+        maxPrice: appliedFilters.maxPrice,
+        brand: appliedFilters.brand,
+      })
+      let products = Array.isArray(data) ? data : []
 
       if (sort === 'priceAsc') {
         products = [...products].sort((a, b) => Number(a.price) - Number(b.price))
@@ -42,7 +41,7 @@ export default function Category() {
       setItems(products)
     } catch (err) {
       console.error('Error fetching products:', err)
-      setError(err.message)
+      setError(getErrorMessage(err, 'Không thể tải sản phẩm.'))
       setItems([])
     } finally {
       setLoading(false)

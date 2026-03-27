@@ -1,6 +1,6 @@
 // src/pages/admin/Revenue.jsx
 import { useEffect, useState } from 'react'
-import { api, buildApiUrl, getAccessToken } from '../../lib/api.js'
+import { StatisticsAPI, getErrorMessage } from '../../lib/api.js'
 
 export default function AdminRevenue() {
   const [data, setData] = useState(null)
@@ -17,11 +17,11 @@ export default function AdminRevenue() {
     try {
       setLoading(true)
       setError('')
-      const res = await api('/api/admin/revenue')
+      const res = await StatisticsAPI.revenueDetails()
       setData(res)
     } catch (err) {
       console.error('Error loading revenue:', err)
-      setError(err.message || 'Failed to load revenue data')
+      setError(getErrorMessage(err, 'Failed to load revenue data'))
     } finally {
       setLoading(false)
     }
@@ -29,22 +29,10 @@ export default function AdminRevenue() {
 
   async function exportCsv() {
     try {
-      const params = new URLSearchParams()
-      if (exportFrom) params.set('from', exportFrom)
-      if (exportTo) params.set('to', exportTo)
-
-      const token = getAccessToken()
-      const url = buildApiUrl(`/api/admin/revenue/export${params.toString() ? `?${params.toString()}` : ''}`)
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      const csv = await StatisticsAPI.exportCsv({
+        from: exportFrom,
+        to: exportTo,
       })
-
-      if (!res.ok) {
-        const message = await res.text()
-        throw new Error(message || `Export failed (HTTP ${res.status})`)
-      }
-
-      const csv = await res.text()
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
@@ -54,7 +42,7 @@ export default function AdminRevenue() {
       link.remove()
       URL.revokeObjectURL(link.href)
     } catch (err) {
-      setError(err.message || 'Failed to export CSV')
+      setError(getErrorMessage(err, 'Failed to export CSV'))
     }
   }
 

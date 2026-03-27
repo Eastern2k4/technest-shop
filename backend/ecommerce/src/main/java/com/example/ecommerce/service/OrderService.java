@@ -38,13 +38,6 @@ public class OrderService {
                     "User not found. Please log in again.");
         }
 
-        if (request.items() == null || request.items().isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Order must contain at least one item");
-        }
-        if (request.address() == null || request.address().stream().anyMatch(part -> part == null || part.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Shipping address is required");
-        }
-
         Order order = new Order();
         order.setUser(user);
         order.setPaymentMethod(request.payment());
@@ -54,14 +47,6 @@ public class OrderService {
         List<OrderItem> orderItems = new ArrayList<>();
 
         for (OrderItemRequest itemReq : request.items()) {
-            if (itemReq.id() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product ID is required");
-            }
-            if (itemReq.qty() == null || itemReq.qty() <= 0) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "Quantity must be greater than 0 for product: " + itemReq.id());
-            }
-
             Product product = productRepository.findByIdForUpdate(itemReq.id())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             "Product not found: " + itemReq.id()));

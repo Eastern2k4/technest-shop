@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-import { api } from '../lib/api.js'
+import { ProductsAPI, getErrorMessage } from '../lib/api.js'
 
 const COMMON_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Vivo', 'Realme', 'Huawei', 'Sony', 'LG', 'Asus', 'Acer', 'Dell', 'HP', 'Lenovo', 'MSI', 'Razer', 'Logitech', 'JBL', 'Bose']
 
@@ -60,26 +60,24 @@ export default function Search() {
     setLoading(true)
     setError(null)
     
-    // Build API URL with all filters
-    const params = new URLSearchParams()
-    if (query.trim()) params.set('q', query.trim())
-    if (category) params.set('cat', category)
-    if (minPriceParam) params.set('minPrice', minPriceParam)
-    if (maxPriceParam) params.set('maxPrice', maxPriceParam)
-    if (brandParam) params.set('brand', brandParam)
-    
-    api(`/api/products?${params.toString()}`)
+    ProductsAPI.list({
+      q: query.trim(),
+      cat: category,
+      minPrice: minPriceParam || undefined,
+      maxPrice: maxPriceParam || undefined,
+      brand: brandParam || undefined,
+    })
       .then(data => {
-        const products = Array.isArray(data) ? data : (data.content || [])
+        const products = Array.isArray(data) ? data : []
         setItems(products)
       })
       .catch(err => {
         console.error('Error fetching products:', err)
-        setError(err.message)
+        setError(getErrorMessage(err, 'Không thể tải sản phẩm.'))
         setItems([])
       })
       .finally(() => setLoading(false))
-  }, [query, minPriceParam, maxPriceParam, brandParam, category])
+  }, [query, minPriceParam, maxPriceParam, brandParam, category, categoryParam])
 
   const hasActiveFilters = minPrice || maxPrice || brand || category
 

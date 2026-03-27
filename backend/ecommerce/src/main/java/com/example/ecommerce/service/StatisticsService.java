@@ -37,29 +37,15 @@ public class StatisticsService {
     }
 
     public StatisticsSummaryResponse getStatistics() {
-        List<Order> orders = orderRepository.findAll();
-
-        BigDecimal totalRevenue = BigDecimal.ZERO;
-        long totalOrders = 0;
-        long deliveredOrders = 0;
-        long paidDeliveredOrders = 0;
-        long failedPaymentOrders = 0;
-
-        for (Order order : orders) {
-            if (order.getStatus() == Order.OrderStatus.DELIVERED) {
-                deliveredOrders++;
-            }
-            if (order.getPaymentStatus() == PaymentStatus.FAILED) {
-                failedPaymentOrders++;
-            }
-            if (order.getStatus() == Order.OrderStatus.DELIVERED
-                    && order.getPaymentStatus() == PaymentStatus.PAID
-                    && order.getGrandTotal() != null) {
-                totalRevenue = totalRevenue.add(order.getGrandTotal());
-                paidDeliveredOrders++;
-            }
-            totalOrders++;
-        }
+        BigDecimal totalRevenue = orderRepository.sumGrandTotalByStatusAndPaymentStatus(
+                Order.OrderStatus.DELIVERED,
+                PaymentStatus.PAID);
+        long totalOrders = orderRepository.count();
+        long deliveredOrders = orderRepository.countByStatus(Order.OrderStatus.DELIVERED);
+        long paidDeliveredOrders = orderRepository.countByStatusAndPaymentStatus(
+                Order.OrderStatus.DELIVERED,
+                PaymentStatus.PAID);
+        long failedPaymentOrders = orderRepository.countByPaymentStatus(PaymentStatus.FAILED);
 
         BigDecimal avgOrderValue = paidDeliveredOrders > 0
                 ? totalRevenue.divide(BigDecimal.valueOf(paidDeliveredOrders), 2, RoundingMode.HALF_UP)
@@ -79,7 +65,9 @@ public class StatisticsService {
     }
 
     public RevenueDetailsResponse getRevenueDetails() {
-        List<Order> orders = orderRepository.findAll();
+        List<Order> orders = orderRepository.findByStatusAndPaymentStatusAndPlacedAtIsNotNullOrderByPlacedAtAsc(
+                Order.OrderStatus.DELIVERED,
+                PaymentStatus.PAID);
 
         LocalDate today = LocalDate.now();
         LocalDate firstDayOfMonth = today.withDayOfMonth(1);
@@ -133,19 +121,12 @@ public class StatisticsService {
     public String exportRevenueCsv(LocalDate fromDate, LocalDate toDate) {
         Map<LocalDate, BigDecimal> dailyMap = new TreeMap<>();
 
-        for (Order order : orderRepository.findAll()) {
-            LocalDateTime placedAt = order.getPlacedAt();
-            if (placedAt == null
-                    || order.getStatus() != Order.OrderStatus.DELIVERED
-                    || order.getPaymentStatus() != PaymentStatus.PAID) {
-                continue;
-            }
-
-            LocalDate date = placedAt.toLocalDate();
-            if (date.isBefore(fromDate) || date.isAfter(toDate)) {
-                continue;
-            }
-
+        for (Order order : orderRepository.findByStatusAndPaymentStatusAndPlacedAtGreaterThanEqualAndPlacedAtLessThanOrderByPlacedAtAsc(
+                Order.OrderStatus.DELIVERED,
+                PaymentStatus.PAID,
+                fromDate.atStartOfDay(),
+                toDate.plusDays(1).atStartOfDay())) {
+            LocalDate date = order.getPlacedAt().toLocalDate();
             BigDecimal amount = order.getGrandTotal() != null ? order.getGrandTotal() : BigDecimal.ZERO;
             dailyMap.merge(date, amount, BigDecimal::add);
         }

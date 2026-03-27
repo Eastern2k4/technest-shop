@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api } from '../../lib/api.js'
+import { OrdersAPI, ProductsAPI, ReviewsAPI, getErrorMessage } from '../../lib/api.js'
 
 export default function StaffDashboard() {
   const [stats, setStats] = useState({
     ordersToPick: 0,
     ordersToPack: 0,
     lowStockItems: 0,
-    pendingReplies: 0
+    pendingReviews: 0
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -20,32 +20,26 @@ export default function StaffDashboard() {
     try {
       setLoading(true)
       setError('')
-      // Load orders to count pending/packing
-      const orders = await api('/api/orders')
+      const [orders, products, pendingRes] = await Promise.all([
+        OrdersAPI.list(),
+        ProductsAPI.list({ cat: 'all' }),
+        ReviewsAPI.pendingCount(),
+      ])
       const ordersList = Array.isArray(orders) ? orders : []
-      
-      // Count orders by status
       const ordersToPick = ordersList.filter(o => o.status === 'PENDING').length
       const ordersToPack = ordersList.filter(o => o.status === 'SHIPPING').length
-      
-      // Load products to check low stock
-      const products = await api('/api/products?size=1000')
-      const productList = Array.isArray(products) ? products : (products?.content || [])
-      
-      // Count low stock items (quantity < 10)
+      const productList = Array.isArray(products) ? products : []
       const lowStock = productList.filter(p => (p.quantity || 0) < 10).length
-
-      const pendingRes = await api('/api/reviews/pending-count')
 
       setStats({
         ordersToPick,
         ordersToPack,
         lowStockItems: lowStock,
-        pendingReplies: Number(pendingRes?.pendingReplies || 0)
+        pendingReviews: Number(pendingRes?.pendingReviews || 0)
       })
     } catch (err) {
       console.error('Error loading stats:', err)
-      setError(err?.message || 'Không thể tải dữ liệu.')
+      setError(getErrorMessage(err, 'Không thể tải dữ liệu.'))
     } finally {
       setLoading(false)
     }
@@ -76,8 +70,8 @@ export default function StaffDashboard() {
     ,
     {
       tone: 'green',
-      title: 'Đánh giá cần phản hồi',
-      value: stats.pendingReplies,
+      title: 'Đánh giá chờ duyệt',
+      value: stats.pendingReviews,
       icon: '💬',
       to: '/staff/reviews',
     }

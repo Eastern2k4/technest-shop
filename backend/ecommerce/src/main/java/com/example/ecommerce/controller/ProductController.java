@@ -1,9 +1,12 @@
 package com.example.ecommerce.controller;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+
+import jakarta.validation.Valid;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -131,8 +134,10 @@ public class ProductController {
 
         Page<Product> productPage = productService.list(categoryId, q, minPriceBD, maxPriceBD, brand, pageable);
 
-        // Fetch all categories and create a map for quick lookup
-        Map<Long, String> categoryMap = categoryRepository.findAll().stream()
+        Map<Long, String> categoryMap = categoryRepository.findAllByIdIn(productPage.getContent().stream()
+                .map(Product::getCategoryId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toCollection(HashSet::new))).stream()
                 .collect(Collectors.toMap(Category::getId, Category::getName));
 
         // Map products with category names
@@ -159,13 +164,13 @@ public class ProductController {
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ProductDTO create(@RequestBody ProductDTO dto) {
+    public ProductDTO create(@RequestBody @Valid ProductDTO dto) {
         Product p = new Product();
         p.setName(dto.name());
         p.setPrice(dto.price());
         p.setImageUrl(dto.imageUrl());
         p.setCategoryId(dto.categoryId());
-        p.setQuantity(dto.quantity() == null ? 0 : dto.quantity());
+        p.setQuantity(dto.quantity());
         p.setDescriptionShort(dto.descriptionShort());
         p.setDescriptionLong(dto.descriptionLong());
         Product created = productService.create(p);
@@ -177,13 +182,13 @@ public class ProductController {
 
     @PreAuthorize("hasAnyRole('ADMIN','STAFF')")
     @PutMapping("/{id}")
-    public ProductDTO update(@PathVariable Long id, @RequestBody ProductDTO dto) {
+    public ProductDTO update(@PathVariable Long id, @RequestBody @Valid ProductDTO dto) {
         Product p = productService.get(id);
         p.setName(dto.name());
         p.setPrice(dto.price());
         p.setImageUrl(dto.imageUrl());
         p.setCategoryId(dto.categoryId());
-        p.setQuantity(dto.quantity() == null ? 0 : dto.quantity());
+        p.setQuantity(dto.quantity());
         p.setDescriptionShort(dto.descriptionShort());
         p.setDescriptionLong(dto.descriptionLong());
         Product updated = productService.update(p);

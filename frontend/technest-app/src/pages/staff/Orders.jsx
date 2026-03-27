@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
-import { api } from '../../lib/api.js'
+import { OrdersAPI, getErrorMessage } from '../../lib/api.js'
 
 export default function StaffOrders() {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState('')
+  const [updatingOrderId, setUpdatingOrderId] = useState(null)
 
   useEffect(() => {
     loadOrders()
@@ -14,25 +16,12 @@ export default function StaffOrders() {
     try {
       setLoading(true)
       setError(null)
-  
-      const data = await api('/api/orders')   // <-- gọi BE
-      // data chính là list<Map<String, Object>> backend trả ra ở getAllOrders
-  
-      // map lại cho khớp với UI StaffOrders đang dùng
-      const mapped = data.map(o => ({
-        id: o.id,
-        orderNumber: o.orderNumber,
-        customerName: o.customerName,
-        total: o.total,
-        status: o.status,
-        paymentStatus: o.paymentStatus,
-        itemCount: o.itemCount || 0
-      }))
-  
-      setOrders(mapped)
+
+      const data = await OrdersAPI.list()
+      setOrders(Array.isArray(data) ? data : [])
     } catch (err) {
       console.error('Error loading orders:', err)
-      setError(err.message || 'Failed to load orders')
+      setError(getErrorMessage(err, 'Failed to load orders'))
     } finally {
       setLoading(false)
     }
@@ -41,27 +30,35 @@ export default function StaffOrders() {
 
   async function updateOrderStatus(orderId, status) {
     try {
-      await api(`/api/orders/${orderId}/status`, {
-        method: 'PUT',
-        body: { status }  // hoặc gửi thêm paymentStatus nếu cần
-      })
+      setUpdatingOrderId(orderId)
+      setError(null)
+      setNotice('')
+      await OrdersAPI.updateStatus(orderId, { status })
+      setNotice('Order status updated successfully.')
       await loadOrders()
     } catch (err) {
       console.error('Error updating order:', err)
-      alert('Failed to update order: ' + (err.message || 'Unknown error'))
+      setNotice('')
+      setError(getErrorMessage(err, 'Failed to update order'))
+    } finally {
+      setUpdatingOrderId(null)
     }
   }
 
   async function updatePaymentStatus(orderId, paymentStatus) {
     try {
-      await api(`/api/orders/${orderId}/status`, {
-        method: 'PUT',
-        body: { paymentStatus }
-      })
+      setUpdatingOrderId(orderId)
+      setError(null)
+      setNotice('')
+      await OrdersAPI.updateStatus(orderId, { paymentStatus })
+      setNotice('Payment status updated successfully.')
       await loadOrders()
     } catch (err) {
       console.error('Error updating payment status:', err)
-      alert('Failed to update payment status: ' + (err.message || 'Unknown error'))
+      setNotice('')
+      setError(getErrorMessage(err, 'Failed to update payment status'))
+    } finally {
+      setUpdatingOrderId(null)
     }
   }
 
@@ -80,9 +77,10 @@ export default function StaffOrders() {
 
       {loading ? (
         <p>Đang tải...</p>
-      ) : error ? (
-        <div style={{ color: 'red' }}>Error: {error}</div>
-      ) : orders.length === 0 ? (
+      ) : (
+        <>
+        {error && <div style={{ color: 'red', marginBottom: 12 }}>Error: {error}</div>}
+        {orders.length === 0 ? (
         <div style={{ 
           textAlign: 'center', 
           padding: 48, 
@@ -99,6 +97,7 @@ export default function StaffOrders() {
         </div>
       ) : (
         <div style={{ overflowX: 'auto' }}>
+          {notice && <div style={{ color: '#047857', marginBottom: 12 }}>{notice}</div>}
           <table width="100%" cellPadding="12" style={{ 
             borderCollapse: "collapse", 
             border: "1px solid var(--border, #eee)",
@@ -140,6 +139,7 @@ export default function StaffOrders() {
                     <select
                       value={order.paymentStatus || 'UNPAID'}
                       onChange={(e) => updatePaymentStatus(order.id, e.target.value)}
+                      disabled={updatingOrderId === order.id}
                       style={{ padding: '4px 8px', borderRadius: 4 }}
                     >
                       <option value="UNPAID">UNPAID</option>
@@ -154,9 +154,10 @@ export default function StaffOrders() {
                         <button 
                           className="btn-primary" 
                           onClick={() => updateOrderStatus(order.id, 'SHIPPING')}
+                          disabled={updatingOrderId === order.id}
                           style={{ padding: '4px 12px', fontSize: 14 }}
                         >
-                          Start Shipping
+                          {updatingOrderId === order.id ? 'Updating...' : 'Start Shipping'}
                         </button>
                       )}
                     </div>
@@ -166,6 +167,8 @@ export default function StaffOrders() {
             </tbody>
           </table>
         </div>
+      )}
+        </>
       )}
     </div>
   )

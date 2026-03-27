@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
-import { api } from '../lib/api.js'
+import { ProductsAPI } from '../lib/api.js'
 
 export default function Home() {
   const { add } = useCart()
@@ -9,24 +9,38 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
     const cats = ['phone', 'laptop', 'screen', 'headphone', 'accessories']
-    let completed = 0
-    
-    cats.forEach(cat => {
-      api(`/api/products?cat=${cat}`)
-        .then(list => Array.isArray(list) ? list : [])
-        .then(list => {
-          setProducts(prev => ({ ...prev, [cat]: list.slice(0, 4) }))
-          completed++
-          if (completed === cats.length) setLoading(false)
-        })
-        .catch(() => {
-          setProducts(prev => ({ ...prev, [cat]: [] }))
-          completed++
-          if (completed === cats.length) setLoading(false)
-        })
-    })
+    let cancelled = false
+
+    async function loadFeaturedProducts() {
+      try {
+        setLoading(true)
+        const entries = await Promise.all(
+          cats.map(async (cat) => {
+            try {
+              const list = await ProductsAPI.list({ cat })
+              return [cat, Array.isArray(list) ? list.slice(0, 4) : []]
+            } catch {
+              return [cat, []]
+            }
+          })
+        )
+
+        if (!cancelled) {
+          setProducts(Object.fromEntries(entries))
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadFeaturedProducts()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const sections = [
