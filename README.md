@@ -1,258 +1,196 @@
-# TechNest Shop Status
+# TechNest Shop
 
-README nay la operating brief. Muc tieu la de lan sau chi can doc file nay la biet:
+TechNest Shop la monorepo cho mot ung dung e-commerce gom:
 
-- project dang o trang thai nao
-- contract va rule nao dang co hieu luc
-- buoc tiep theo nen lam gi
+- `frontend/technest-app`: React + Vite
+- `backend/ecommerce`: Spring Boot + Spring Security + JPA
+- `database`: MySQL 8.4 hoac H2 local mode
 
-Contract chi tiet da duoc tach ra:
+Project ho tro catalog san pham, gio hang, dat hang, quan ly user, review moderation, thong ke doanh thu, va deploy bang Docker Compose.
 
-- `docs/openapi.yaml`: source of truth dang may-doc duoc, co version
-- `docs/API_CONTRACT.md`: human summary doc nhanh
+`help.md` giu vai tro operating brief noi bo. File nay la README huong dan tong quan va cach su dung.
 
-## Snapshot
+## Chuc Nang Chinh
 
-- Monorepo gom:
-  - `frontend/technest-app`: React + Vite
-  - `backend/ecommerce`: Spring Boot + Spring Security + JPA
-- Runtime/deploy assets da co:
-  - `compose.yaml`
-  - `compose.prod.yaml`
-  - `scripts/deploy-preflight.sh`
-  - `scripts/wait-for-url.sh`
-  - `scripts/smoke-public.sh`
-  - `backend/ecommerce/Dockerfile`
-  - `frontend/technest-app/Dockerfile`
-  - `frontend/technest-app/nginx.conf`
-  - `docs/DEPLOYMENT.md`
-- Auth dung JWT bearer token; frontend luu auth state trong `localStorage` va da co guard khi parse loi.
-- Runtime local cua backend da doi sang `auto` mode:
-  - neu co `DB_PASSWORD`/`MYSQL_ROOT_PASSWORD` hop le thi vao MySQL that
-  - neu khong co credential hop le thi tu dong boot H2 seeded de FE khong bi rong
-- Co the ep mode ro rang:
-  - `SPRING_PROFILES_ACTIVE=mysql ./mvnw spring-boot:run`
-  - `SPRING_PROFILES_ACTIVE=h2 ./mvnw spring-boot:run`
-- FE-BE contract chinh da duoc chuan hoa qua DTO/service cho `auth`, `profile`, `user`, `product`, `order`, `review`, `statistics`.
-- OpenAPI spec versioned da co tai `docs/openapi.yaml`, frontend da co generated type artifact tai `frontend/technest-app/src/lib/api-contract.d.ts`, va API layer da duoc dua sang partial TypeScript (`src/lib/api.ts`, `src/lib/http.ts`).
-- Frontend UI layer da bo raw `/api/...` string usage; cac screen chinh di qua domain wrappers trong `src/lib/api.ts` cho `auth`, `categories`, `products`, `orders`, `reviews`, `users`, `statistics`.
-- Backend da dung Flyway baseline migration va `ddl-auto=validate`; khong con phu thuoc vao Hibernate auto-update de bootstrap schema.
-- FE field-level validation da co o cac form chinh:
-  - `SignIn`
-  - `SignUp`
-  - `Profile`
-  - `AdminUsers`
-  - `AdminProducts`
-  - `Cart`
-  - `StaffInventory`
-- Controller nghiep vu lon da duoc day xuong service:
-  - `OrderService`
-  - `ReviewService`
-  - `StatisticsService`
-  - `UserService`
-  - `AuthProfileService`
-- Xac nhan ngay `2026-03-27`:
-  - backend `./mvnw test`: pass `28/28`
-  - frontend `npm run typecheck`: pass
-  - frontend `npm run build`: pass
-  - frontend `npm audit --include=dev`: `0 vulnerabilities`
-- Xac nhan ngay `2026-03-28`:
-  - backend `./mvnw test`: pass `28/28`
-  - frontend `npm run typecheck`: pass
-  - frontend `npm run build`: pass
-  - backend `SERVER_PORT=8081 ./mvnw spring-boot:run`: boot thanh cong trong `auto` mode, `/actuator/health = UP`
-  - backend `SERVER_PORT=8081 ./mvnw spring-boot:run`: `/api/products` tra `13` san pham seeded, login `customer@technest.local / TechNest@123` thanh cong
+- Xem danh muc, tim kiem, loc san pham theo category, gia, brand
+- Dang ky, dang nhap, xem va cap nhat ho so nguoi dung
+- Gio hang luu theo guest/user va dong bo theo user
+- Dat hang, theo doi lich su don, xac nhan da nhan hang
+- Viet review sau khi don hang da giao va da thanh toan
+- Staff:
+  - xu ly don hang
+  - cap nhat ton kho
+  - duyet/xoa/reply review
+- Admin:
+  - dashboard tong quan
+  - quan ly san pham
+  - quan ly user
+  - xem don hang
+  - xem thong ke va export doanh thu
+- OpenAPI contract, migration bang Flyway, va deploy bang Docker
 
-## Local Runtime
+## Kien Truc Tong Quan
 
-- Muon uu tien dung du lieu that trong MySQL:
-  - tao file `.env` tu `.env.example`
-  - dien dung `MYSQL_DATABASE` va `MYSQL_ROOT_PASSWORD`
-  - co the ep ro rang bang `APP_DATABASE_MODE=mysql`
-  - chay `cd backend/ecommerce && ./mvnw spring-boot:run`
-- Muon boot local khong phu thuoc MySQL:
-  - chay `cd backend/ecommerce && SPRING_PROFILES_ACTIVE=h2 ./mvnw spring-boot:run`
-  - local H2 duoc seed san catalog + user demo
-- Tai khoan demo local H2:
-  - `customer@technest.local / TechNest@123`
-  - `staff@technest.local / TechNest@123`
-  - `admin@technest.local / TechNest@123`
-- Neu frontend khong thay san pham hoac login vao account co san bi fail:
-  - kiem tra backend dang chay instance nao tren `:8080`
-  - kiem tra instance do dang o `Runtime database mode` nao trong log
-  - neu can vao MySQL that, dam bao `.env` co `MYSQL_ROOT_PASSWORD` hop le thay vi gia tri placeholder
+- Frontend goi backend qua API wrappers trong `frontend/technest-app/src/lib/api.ts`
+- Backend theo kieu layered monolith:
+  - `controller`
+  - `service`
+  - `repository`
+  - `dto`
+- Authentication dung JWT bearer token
+- Database schema duoc version hoa bang Flyway trong `backend/ecommerce/src/main/resources/db/migration`
+- Local backend co `auto` mode:
+  - co MySQL credentials hop le thi dung MySQL
+  - khong co thi tu boot H2 seeded de giao dien co du lieu ngay
 
-## Current Contract
+## Yeu Cau Moi Truong
 
-### User
+- Node.js 20+ va npm
+- Java 17
+- Maven Wrapper co san trong repo, khong can cai Maven rieng
+- Tuy chon:
+  - MySQL 8.4 neu muon dung du lieu that
+  - Docker + Docker Compose neu muon chay full stack bang container
 
-- Shape chuan:
-  - `id, email, username, fullName, phone, addressText, avatarUrl, role`
+## Cai Dat Nhanh
 
-### Product
+### 1. Clone repo va tao env
 
-- Shape chuan:
-  - `id, name, brand, price, imageUrl, categoryId, categoryName, quantity, descriptionShort, descriptionLong`
+```bash
+cp .env.example .env
+```
 
-### Order
+Can sua toi thieu neu muon dung MySQL/deploy:
 
-- Summary/detail da duoc typed hoa.
-- Field chinh:
-  - `id, orderNumber, items, itemCount, subtotal, shipping, total, paymentMethod, status, paymentStatus, placedAt`
+- `MYSQL_ROOT_PASSWORD`
+- `APP_JWT_SECRET`
+- `APP_CORS_ALLOWED_ORIGINS`
 
-### Review
+### 2. Cai frontend dependencies
 
-- Public product reviews chi tra review da duyet.
-- Staff/admin co management list rieng cho moi product.
-- Review response dung:
-  - `id, userId, userName, userAvatar, rating, title, body, isApproved, createdAt, reply`
-- Pending counters da chuan hoa thanh:
-  - `pendingReviews`
-- Review moi duoc tao o trang thai `pending`.
-- Reply chi duoc phep khi review da `approved`.
-- Moi review chi co `1` reply; goi reply lan sau se update.
+```bash
+cd frontend/technest-app
+npm install
+```
 
-### Error Response
+## Chay Local
 
-- API loi da duoc chuan hoa ve:
-  - `status, error, message, validationErrors`
-- FE cac form chinh da bat dau consume `validationErrors` theo field.
+### Cach 1: Chay nhanh voi H2 seeded
 
-## Known Decisions
+Backend:
 
-### Order
+```bash
+cd backend/ecommerce
+SPRING_PROFILES_ACTIVE=h2 ./mvnw spring-boot:run
+```
 
-- Tao don hang dung `pessimistic write lock` tren product de giam oversell.
-- Da co concurrency test cho case 2 request tranh chap 1 ton kho cuoi cung.
-- Xoa user khong bulk delete order nua; xoa qua entity de cascade xuong `order_items`.
+Frontend:
 
-### Review Moderation
+```bash
+cd frontend/technest-app
+npm run dev
+```
 
-- Review moi khong auto approve nua.
-- Staff/admin co the:
-  - duyet review
-  - dua review ve `pending`
-  - xoa review
-  - reply/cap nhat reply sau khi review da duyet
-- Staff UI `/staff/reviews` da dong bo voi luong moderation moi.
-- Staff dashboard da doi semantics tu `pendingReplies` sang `pendingReviews`.
+Mac dinh:
 
-### Validation and Errors
+- Backend: `http://localhost:8080`
+- Frontend: `http://localhost:5173`
 
-- Request DTO chinh da co bean validation + `@Valid`.
-- Validation payload tra ve `validationErrors` thay vi loi string roi rac.
-- FE da co `FieldError` component dung chung.
-- Checkout va staff inventory da dung chung co che field-level validation thay vi `alert()`/generic error.
-- Admin/staff order va delete flows da bo `alert()` va chuyen sang error banner/notice.
-- Actuator health khong con bi keo `DOWN` chi vi mail SMTP chua cau hinh; mail health mac dinh tat va co the bat lai bang `MAIL_HEALTH_ENABLED=true`.
+### Cach 2: Chay voi MySQL local
 
-### Security and Runtime
+Dam bao `.env` da co:
 
-- `401/403` tra JSON co cau truc thay vi plain text.
-- Email auth/admin duoc normalize ve lowercase va lookup theo ignore-case de tranh mismatch hoa-thuong.
-- JWT TTL da chuyen sang config `app.jwt.ttl-seconds` thay vi hard-code trong controller.
-- JWT secret fail-fast neu ngan hon 32 ky tu.
-- `JwtAuthFilter` khong ghi de auth context neu da co auth.
-- Security headers mac dinh da bat cho API:
-  - `X-Content-Type-Options`
-  - `Referrer-Policy`
-  - `Permissions-Policy`
-  - `Cache-Control`
-- Actuator chi public `health`.
-- CORS da doc tu env, khong cho phep `*` khi credentials dang bat, `spring.jpa.open-in-view=false`, va 500 da khong leak stack trace/class name.
+- `MYSQL_DATABASE`
+- `MYSQL_ROOT_PASSWORD`
 
-### Deployment
+Sau do chay:
 
-- Backend va frontend da co Dockerfile rieng; stack local/prod co the chay qua `docker compose`.
-- Frontend Nginx phuc vu static build va proxy same-origin `/api/*` sang backend.
-- Schema duoc version hoa bang Flyway tai `backend/ecommerce/src/main/resources/db/migration`.
-- `SPRING_JPA_HIBERNATE_DDL_AUTO` mac dinh deploy da ve `validate`.
-- App bootstrap tu dam bao role `customer/staff/admin`, va co the tao admin dau tien qua env.
-- Da co 2 path:
-  - source build qua `compose.yaml`
-  - image release qua `compose.prod.yaml`
-- Repo da co GitHub workflow cho:
-  - CI verify
-  - release image len GHCR
-  - deploy qua SSH neu da cau hinh secret
-- Release path da co them preflight, retryable health wait, va optional public smoke sau deploy.
-- Chi tiet runtime/deploy xem `docs/DEPLOYMENT.md`.
+```bash
+cd backend/ecommerce
+./mvnw spring-boot:run
+```
 
-### Query Strategy
+Backend se tu vao `auto` mode va uu tien MySQL neu credentials hop le.
 
-- Admin orders, statistics, users, product filtering da giam fetch `findAll()` roi loc trong memory.
-- Product filtering da day xuong repository/specification.
-- `brand` da thanh field chinh thuc cua product va duoc filter bang cot rieng co index; khong con suy luan bang keyword tren `name`.
-- Runtime datasource da duoc chuan hoa theo `auto/mysql/h2` mode thay vi ngam dinh phu thuoc MySQL local va secret ngoai repo.
-- Local H2 da co seed data co kiem soat de frontend/auth/catalog chay duoc ngay ca khi MySQL local chua duoc cau hinh.
-- Flyway da co them migration index cho hotspot query cua:
-  - admin orders / statistics
-  - review moderation
-  - product category + price filters
+### Cach 3: Chay bang Docker Compose
 
-## Open Risks
+```bash
+docker compose up -d --build
+```
 
-1. Chua smoke-test duoc `docker compose up` ngay trong workspace nay vi may hien tai khong co `docker` binary.
-2. Production auth hardening muc cao chua xong:
-   - refresh/revocation strategy
-   - final cookie strategy neu can muc bao mat cao hon
-   - policy ratelimit/risk-based auth day du
-3. Free-text search `q` van dua tren `%like%` tren `product.name/brand/descriptionShort`; neu data lon hon nua se can full-text/search service chuyen biet.
-4. Can chot backup/restore, monitoring, va wire deploy secret/host that truoc khi go-live that.
-5. FE da di qua domain wrappers typed o API layer, nhung page/component van la JSX; chua co typed client xuyen suot den UI state/forms.
+Mac dinh frontend se mo o cong `80`:
 
-## Next Step
+- `http://localhost`
 
-1. Cau hinh GitHub secret + host that, chay `Release` workflow, va smoke deploy tren VPS/host co Docker that.
-2. Bat TLS o edge va chay go-live checklist trong `docs/DEPLOYMENT.md`.
-3. Can nhac mo rong TypeScript tu wrapper layer ra cac screen/form quan trong, hoac generate typed client day du tu `docs/openapi.yaml`.
-4. Danh gia tiep full-text search strategy cho `q`, vi B-Tree index khong giai quyet tot leading wildcard search.
-5. Hoan thien production auth strategy neu app co user that.
+## Tai Khoan Demo Local H2
 
-## Last Completed Change
+Neu chay voi H2 seeded, ban co the dang nhap bang:
 
-### 2026-03-27
+- `customer@technest.local / TechNest@123`
+- `staff@technest.local / TechNest@123`
+- `admin@technest.local / TechNest@123`
 
-- Them deployment assets cho internet-facing stack:
-  - `compose.yaml`
-  - backend/frontend Dockerfile
-  - frontend Nginx proxy same-origin
-  - `.env.example`
-  - `docs/DEPLOYMENT.md`
-- Them `BootstrapDataService` de dam bao role core va bootstrap admin qua env.
-- Chuyen schema bootstrap tu Hibernate sang Flyway:
-  - them `V1__baseline.sql`
-  - doi `ddl-auto` sang `validate`
-  - doi default deploy env sang `validate`
-- Them CI/CD GitHub:
-  - `ci.yml` cho backend tests, frontend build, docker image build
-  - `release.yml` cho build/push GHCR va deploy qua SSH
-- Them `compose.prod.yaml` de tach image-based deploy khoi source-build deploy.
-- Them `V2__query_indexes.sql` cho query hotspot:
-  - orders theo `user_id + placed_at`
-  - statistics/admin list theo `status + payment_status + placed_at`
-  - product filter theo `category_id + price`
-  - review moderation theo `product_id + created_at` va `is_approved + created_at`
-- Them `docs/openapi.yaml` version `1.0.0` cho contract auth/catalog/order/review/admin/statistics.
-- Them `redocly.yaml` va noi `ci.yml` vao OpenAPI lint de spec duoc verify trong CI.
-- Them `frontend/technest-app/src/lib/api-contract.d.ts` va script `npm run api:types` de sinh type artifact tu OpenAPI.
-- Them `frontend/technest-app/src/lib/api.ts`, `src/lib/http.ts`, `tsconfig.typecheck.json`, va `npm run typecheck` de OpenAPI types bat dau rang buoc runtime API layer that su.
-- Dung `isAuthenticatedProfile` trong `SignIn`, `SignUp`, `Profile` de bo gia dinh ngam sai ve shape cua `/api/auth/me`.
-- Nang `react-router-dom` len ban patched va nang frontend toolchain len `vite@8` + `@vitejs/plugin-react@6`; `npm audit --include=dev` hien tai ve `0 vulnerabilities`.
-- Mo rong `src/lib/api.ts` thanh domain wrappers cho `categories/products/orders/reviews/users/statistics`.
-- Chuyen customer flows, admin/staff screens, va chatbot sang domain wrappers; frontend da khong con raw `/api/...` string usage trong `src/`.
-- Them `brand` thanh field chinh thuc cua product tu DB -> DTO -> OpenAPI -> generated types -> FE form/filter.
-- Them migration `V3__product_brand.sql` de backfill brand best-effort cho du lieu cu va them index `brand`, `category_id + brand + price`.
-- Chuyen admin/staff product form va category/search filter sang contract moi; chatbot cung search tren `brand`.
-- Them script deploy/preflight/smoke cho host that:
-  - `scripts/deploy-preflight.sh`
-  - `scripts/wait-for-url.sh`
-  - `scripts/smoke-public.sh`
-- Them image-level `HEALTHCHECK` cho backend/frontend Dockerfile, va nang frontend Docker build len `npm ci --include=dev` de tranh mat devDependencies khi build image.
-- Nang release workflow len remote preflight + retryable health wait; neu co `DEPLOY_BASE_URL` se chay them public smoke.
-- Them verify shell/preflight vao CI.
-- Xac nhan lai sau nhiep nay:
-  - backend `./mvnw test`: pass `28/28`
-  - frontend `npm run api:types`: pass
-  - frontend `npm run typecheck`: pass
-  - frontend `npm run build`: pass
+## Huong Dan Su Dung
+
+### Nguoi Dung
+
+1. Mo trang chu, xem catalog hoac tim kiem san pham
+2. Them san pham vao gio hang
+3. Dang ky hoac dang nhap
+4. Dat hang tu trang `Cart`
+5. Xem lich su don va cap nhat ho so o trang `Profile`
+6. Sau khi don o trang thai `DELIVERED` va `PAID`, co the viet review
+
+### Staff
+
+1. Dang nhap bang tai khoan role `STAFF`
+2. Vao `/staff`
+3. Xu ly don hang o `Process Orders`
+4. Quan ly ton kho o `Inventory`
+5. Duyet va phan hoi review o `Reviews`
+
+### Admin
+
+1. Dang nhap bang tai khoan role `ADMIN`
+2. Vao `/admin`
+3. Theo doi KPI o dashboard
+4. Quan ly san pham, don hang, user
+5. Xem va export doanh thu
+
+## Lenh Huu Ich
+
+Backend:
+
+```bash
+cd backend/ecommerce
+./mvnw test
+```
+
+Frontend:
+
+```bash
+cd frontend/technest-app
+npm run typecheck
+npm run build
+```
+
+Sinh lai API types tu OpenAPI:
+
+```bash
+cd frontend/technest-app
+npm run api:types
+```
+
+## Tai Lieu Them
+
+- `help.md`: operating brief va trang thai project
+- `docs/API_CONTRACT.md`: tom tat contract API
+- `docs/openapi.yaml`: OpenAPI source of truth
+- `docs/DEPLOYMENT.md`: huong dan deploy chi tiet
+- `.env.example`: bien moi truong mau
+
+## Ghi Chu
+
+- Frontend mac dinh proxy `/api` ve `http://localhost:8080` khi chay dev
+- Deploy production uu tien dung same-origin `/api` qua Nginx
+- Schema database duoc quan ly bang Flyway, khong dung Hibernate auto-update de bootstrap schema production
