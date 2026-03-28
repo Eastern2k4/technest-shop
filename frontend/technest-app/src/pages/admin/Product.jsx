@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import FieldError from '../../components/FieldError.jsx'
 import { CategoriesAPI, ProductsAPI, getErrorMessage, getValidationErrors } from '../../lib/api.js'
+import { COMMON_PRODUCT_BRANDS } from '../../lib/productBrands.js'
 
 export default function AdminProducts() {
   const [products, setProducts] = useState([])
@@ -59,6 +60,7 @@ export default function AdminProducts() {
     const dir = sortDir === 'asc' ? 1 : -1
     if (sortKey === 'id') return (a.id - b.id) * dir
     if (sortKey === 'name') return String(a.name || '').localeCompare(String(b.name || ''), 'vi', { sensitivity: 'base' }) * dir
+    if (sortKey === 'brand') return String(a.brand || '').localeCompare(String(b.brand || ''), 'vi', { sensitivity: 'base' }) * dir
     if (sortKey === 'price') return (Number(a.price || 0) - Number(b.price || 0)) * dir
     if (sortKey === 'stock') return (Number(a.quantity || 0) - Number(b.quantity || 0)) * dir
     if (sortKey === 'category') return String(a.categoryName || '').localeCompare(String(b.categoryName || ''), 'vi', { sensitivity: 'base' }) * dir
@@ -100,6 +102,7 @@ export default function AdminProducts() {
       setFieldErrors({})
       const payload = {
         name: formData.get('name'),
+        brand: formData.get('brand'),
         price: parseFloat(formData.get('price')),
         imageUrl: formData.get('imageUrl'),
         categoryId: formData.get('categoryId') ? parseInt(formData.get('categoryId')) : null,
@@ -152,6 +155,9 @@ export default function AdminProducts() {
             <th align="left" style={{ cursor: 'pointer' }} onClick={() => toggleSort('name')}>
               Name {sortIndicator('name')}
             </th>
+            <th align="left" style={{ cursor: 'pointer' }} onClick={() => toggleSort('brand')}>
+              Brand {sortIndicator('brand')}
+            </th>
             <th align="left" style={{ cursor: 'pointer' }} onClick={() => toggleSort('price')}>
               Price {sortIndicator('price')}
             </th>
@@ -167,7 +173,7 @@ export default function AdminProducts() {
         <tbody>
           {products.length === 0 ? (
             <tr>
-              <td colSpan="7" style={{ textAlign: 'center', padding: 20 }}>No products found</td>
+              <td colSpan="8" style={{ textAlign: 'center', padding: 20 }}>No products found</td>
             </tr>
           ) : (
             sortedProducts.map((p) => (
@@ -179,6 +185,7 @@ export default function AdminProducts() {
                   )}
                 </td>
                 <td>{p.name}</td>
+                <td>{p.brand || '-'}</td>
                 <td>{Number(p.price || 0).toLocaleString('vi-VN')}₫</td>
                 <td>{p.quantity || 0}</td>
                 <td>{p.categoryName || '-'}</td>
@@ -207,6 +214,8 @@ export default function AdminProducts() {
 }
 
 function ProductModal({ product, categories, onClose, onSave, error, fieldErrors }) {
+  const brandDatalistId = 'product-brand-options'
+
   function handleSubmit(e) {
     e.preventDefault()
     onSave(new FormData(e.target))
@@ -247,6 +256,22 @@ function ProductModal({ product, categories, onClose, onSave, error, fieldErrors
               style={{ width: '100%', padding: 8 }}
             />
             <FieldError message={fieldErrors.name} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
+          </div>
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ display: 'block', marginBottom: 4 }}>Brand</label>
+            <input
+              name="brand"
+              type="text"
+              list={brandDatalistId}
+              defaultValue={product?.brand || ''}
+              style={{ width: '100%', padding: 8 }}
+            />
+            <datalist id={brandDatalistId}>
+              {COMMON_PRODUCT_BRANDS.map((brand) => (
+                <option key={brand} value={brand} />
+              ))}
+            </datalist>
+            <FieldError message={fieldErrors.brand} style={{ color: 'red', marginTop: 4, fontSize: 12, display: 'block' }} />
           </div>
           <div style={{ marginBottom: 12 }}>
             <label style={{ display: 'block', marginBottom: 4 }}>Price *</label>

@@ -14,6 +14,8 @@ public record ProductDTO(
                 @NotBlank(message = "Product name is required")
                 @Size(max = 180, message = "Product name must be at most 180 characters")
                 String name,
+                @Size(max = 120, message = "Brand must be at most 120 characters")
+                String brand,
                 @NotNull(message = "Price is required")
                 @DecimalMin(value = "0.0", inclusive = true, message = "Price must be greater than or equal to 0")
                 BigDecimal price,

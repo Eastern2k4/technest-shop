@@ -30,6 +30,9 @@ export default function Profile() {
   const [loadingOrders, setLoadingOrders] = useState(true)
   const [orderError, setOrderError] = useState(null)
   const [openOrderId, setOpenOrderId] = useState(null)
+  const [orderDetails, setOrderDetails] = useState({})
+  const [orderDetailLoading, setOrderDetailLoading] = useState({})
+  const [orderDetailErrors, setOrderDetailErrors] = useState({})
   const [reviewTarget, setReviewTarget] = useState(null)
   const [reviewForm, setReviewForm] = useState({ rating: 5, title: '', body: '' })
   const [reviewErrors, setReviewErrors] = useState({})
@@ -80,7 +83,27 @@ export default function Profile() {
       setOrderError(null)
       setLoadingOrders(true)
       const data = await OrdersAPI.mine()
-      setOrders(Array.isArray(data) ? data : [])
+      const nextOrders = Array.isArray(data) ? data : []
+      const nextOrderIds = new Set(nextOrders.map((entry) => entry.id))
+      setOrders(nextOrders)
+      setOrderDetails((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).filter(([key]) => nextOrderIds.has(Number(key)))
+        )
+      )
+      setOrderDetailLoading((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).filter(([key]) => nextOrderIds.has(Number(key)))
+        )
+      )
+      setOrderDetailErrors((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).filter(([key]) => nextOrderIds.has(Number(key)))
+        )
+      )
+      if (openOrderId && !nextOrderIds.has(openOrderId)) {
+        setOpenOrderId(null)
+      }
     } catch (err) {
       if (err?.status === 401) {
         logout()
@@ -95,10 +118,39 @@ export default function Profile() {
   async function markDelivered(orderId) {
     try {
       setOrderError(null)
-      await OrdersAPI.updateStatus(orderId, { status: 'DELIVERED' })
+      const updatedOrder = await OrdersAPI.updateStatus(orderId, { status: 'DELIVERED' })
+      setOrderDetails((prev) => ({ ...prev, [orderId]: updatedOrder }))
       await loadOrders()
     } catch (err) {
       setOrderError(getErrorMessage(err, 'Không thể cập nhật trạng thái đơn hàng'))
+    }
+  }
+
+  async function toggleOrderDetails(orderId) {
+    if (openOrderId === orderId) {
+      setOpenOrderId(null)
+      return
+    }
+
+    setOpenOrderId(orderId)
+    setOrderError(null)
+
+    if (orderDetails[orderId] || orderDetailLoading[orderId]) {
+      return
+    }
+
+    try {
+      setOrderDetailErrors((prev) => ({ ...prev, [orderId]: null }))
+      setOrderDetailLoading((prev) => ({ ...prev, [orderId]: true }))
+      const detail = await OrdersAPI.get(orderId)
+      setOrderDetails((prev) => ({ ...prev, [orderId]: detail }))
+    } catch (err) {
+      setOrderDetailErrors((prev) => ({
+        ...prev,
+        [orderId]: getErrorMessage(err, 'Không thể tải chi tiết đơn hàng'),
+      }))
+    } finally {
+      setOrderDetailLoading((prev) => ({ ...prev, [orderId]: false }))
     }
   }
 
@@ -618,6 +670,11 @@ export default function Profile() {
 
           {orders.map(order => {
             const open = openOrderId === order.id
+            const detail = orderDetails[order.id]
+            const detailError = orderDetailErrors[order.id]
+            const detailLoadingState = Boolean(orderDetailLoading[order.id])
+            const displayOrder = detail || order
+            const orderPlacedAt = displayOrder?.placedAt || displayOrder?.createdAt
             return (
               <div
                 key={order.id}
@@ -638,7 +695,7 @@ export default function Profile() {
                     <div><strong>Mã đơn:</strong> {order.orderNumber || order.id}</div>
                     <div>
                       <strong>Ngày:</strong>{' '}
-                      {order.createdAt && new Date(order.createdAt).toLocaleString('vi-VN')}
+                      {orderPlacedAt ? new Date(orderPlacedAt).toLocaleString('vi-VN') : 'Chưa cập nhật'}
                     </div>
                     <div>
                       <strong>Tổng tiền:</strong>{' '}
@@ -664,13 +721,13 @@ export default function Profile() {
                   <button
                     className="btn-ghost"
                     type="button"
-                    onClick={() => setOpenOrderId(open ? null : order.id)}
+                    onClick={() => toggleOrderDetails(order.id)}
                   >
                     {open ? 'Ẩn chi tiết' : 'Xem chi tiết'}
                   </button>
                 </div>
 
-                {open && order.items && (
+                {open && (
                   <div
                     style={{
                       marginTop: 12,
@@ -678,128 +735,150 @@ export default function Profile() {
                       paddingTop: 10
                     }}
                   >
-                    {order.items.map((i, idx) => (
+                    {detailLoadingState && <p>Đang tải chi tiết đơn hàng...</p>}
+
+                    {!detailLoadingState && detailError && (
                       <div
-                        key={i.id || idx}
                         style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          marginBottom: 6
+                          background: '#fee',
+                          border: '1px solid #fcc',
+                          padding: 10,
+                          borderRadius: 8,
+                          color: '#c33'
                         }}
                       >
-                        <span>{i.qty} × {i.name}</span>
-                        <strong>
-                          {((i.price || 0) * (i.qty || 0)).toLocaleString('vi-VN')}₫
-                        </strong>
-                      </div>
-                    ))}
-
-                    {order.status === 'DELIVERED' && order.paymentStatus === 'PAID' && (
-                      <div style={{ marginTop: 8 }}>
-                        {order.items.map((i, idx) => (
-                          <div key={`review-${i.id || idx}`} style={{ marginTop: 8 }}>
-                            <button
-                              className="btn-ghost"
-                              type="button"
-                              onClick={() => {
-                                setReviewTarget({ orderId: order.id, productId: i.id })
-                                setReviewForm({ rating: 5, title: '', body: '' })
-                              }}
-                            >
-                              Viết đánh giá cho {i.name}
-                            </button>
-                            {reviewTarget?.orderId === order.id && reviewTarget?.productId === i.id && (
-                              <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8 }}>
-                                <div style={{ marginBottom: 8 }}>
-                                  <label style={{ display: 'block', marginBottom: 4 }}>Đánh giá (1-5 sao)</label>
-                                  <select
-                                    value={reviewForm.rating}
-                                    onChange={(e) => setReviewForm({ ...reviewForm, rating: parseInt(e.target.value) })}
-                                    className="input"
-                                    style={{ width: 180 }}
-                                  >
-                                    <option value={5}>5 sao - Tuyệt vời</option>
-                                    <option value={4}>4 sao - Tốt</option>
-                                    <option value={3}>3 sao - Bình thường</option>
-                                    <option value={2}>2 sao - Không tốt</option>
-                                    <option value={1}>1 sao - Rất tệ</option>
-                                  </select>
-                                  <FieldError message={reviewErrors.rating} />
-                                </div>
-                                <div style={{ marginBottom: 8 }}>
-                                  <label style={{ display: 'block', marginBottom: 4 }}>Tiêu đề</label>
-                                  <input
-                                    className="input"
-                                    value={reviewForm.title}
-                                    onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
-                                    placeholder="Tóm tắt đánh giá"
-                                  />
-                                  <FieldError message={reviewErrors.title} />
-                                </div>
-                                <div style={{ marginBottom: 8 }}>
-                                  <label style={{ display: 'block', marginBottom: 4 }}>Nội dung đánh giá</label>
-                                  <textarea
-                                    className="input"
-                                    style={{ minHeight: 80 }}
-                                    value={reviewForm.body}
-                                    onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
-                                    placeholder="Chia sẻ trải nghiệm của bạn"
-                                  />
-                                  <FieldError message={reviewErrors.body} />
-                                </div>
-                                <div style={{ display: 'flex', gap: 8 }}>
-                                  <button
-                                    className="btn-primary"
-                                    type="button"
-                                    disabled={reviewLoading}
-                                    onClick={() => submitReview(i.id)}
-                                  >
-                                    {reviewLoading ? 'Đang gửi...' : 'Gửi đánh giá'}
-                                  </button>
-                                  <button
-                                    className="btn-ghost"
-                                    type="button"
-                                    onClick={() => setReviewTarget(null)}
-                                  >
-                                    Hủy
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+                        {detailError}
                       </div>
                     )}
 
-                    <hr style={{ margin: '12px 0' }} />
+                    {!detailLoadingState && !detailError && detail && (
+                      <>
+                        {detail.items?.map((i, idx) => (
+                          <div
+                            key={i.id || idx}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              marginBottom: 6
+                            }}
+                          >
+                            <span>{i.qty} × {i.name}</span>
+                            <strong>
+                              {((i.price || 0) * (i.qty || 0)).toLocaleString('vi-VN')}₫
+                            </strong>
+                          </div>
+                        ))}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Tạm tính</span>
-                      <strong>
-                        {Number(order.subtotal || 0).toLocaleString('vi-VN')}₫
-                      </strong>
-                    </div>
+                        {detail.status === 'DELIVERED' && detail.paymentStatus === 'PAID' && (
+                          <div style={{ marginTop: 8 }}>
+                            {detail.items?.map((i, idx) => (
+                              <div key={`review-${i.id || idx}`} style={{ marginTop: 8 }}>
+                                <button
+                                  className="btn-ghost"
+                                  type="button"
+                                  onClick={() => {
+                                    setOrderError(null)
+                                    setReviewErrors({})
+                                    setReviewTarget({ orderId: order.id, productId: i.id })
+                                    setReviewForm({ rating: 5, title: '', body: '' })
+                                  }}
+                                >
+                                  Viết đánh giá cho {i.name}
+                                </button>
+                                {reviewTarget?.orderId === order.id && reviewTarget?.productId === i.id && (
+                                  <div style={{ marginTop: 8, padding: 12, border: '1px solid #eee', borderRadius: 8 }}>
+                                    <div style={{ marginBottom: 8 }}>
+                                      <label style={{ display: 'block', marginBottom: 4 }}>Đánh giá (1-5 sao)</label>
+                                      <select
+                                        value={reviewForm.rating}
+                                        onChange={(e) => setReviewForm({ ...reviewForm, rating: parseInt(e.target.value, 10) })}
+                                        className="input"
+                                        style={{ width: 180 }}
+                                      >
+                                        <option value={5}>5 sao - Tuyệt vời</option>
+                                        <option value={4}>4 sao - Tốt</option>
+                                        <option value={3}>3 sao - Bình thường</option>
+                                        <option value={2}>2 sao - Không tốt</option>
+                                        <option value={1}>1 sao - Rất tệ</option>
+                                      </select>
+                                      <FieldError message={reviewErrors.rating} />
+                                    </div>
+                                    <div style={{ marginBottom: 8 }}>
+                                      <label style={{ display: 'block', marginBottom: 4 }}>Tiêu đề</label>
+                                      <input
+                                        className="input"
+                                        value={reviewForm.title}
+                                        onChange={(e) => setReviewForm({ ...reviewForm, title: e.target.value })}
+                                        placeholder="Tóm tắt đánh giá"
+                                      />
+                                      <FieldError message={reviewErrors.title} />
+                                    </div>
+                                    <div style={{ marginBottom: 8 }}>
+                                      <label style={{ display: 'block', marginBottom: 4 }}>Nội dung đánh giá</label>
+                                      <textarea
+                                        className="input"
+                                        style={{ minHeight: 80 }}
+                                        value={reviewForm.body}
+                                        onChange={(e) => setReviewForm({ ...reviewForm, body: e.target.value })}
+                                        placeholder="Chia sẻ trải nghiệm của bạn"
+                                      />
+                                      <FieldError message={reviewErrors.body} />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: 8 }}>
+                                      <button
+                                        className="btn-primary"
+                                        type="button"
+                                        disabled={reviewLoading}
+                                        onClick={() => submitReview(i.id)}
+                                      >
+                                        {reviewLoading ? 'Đang gửi...' : 'Gửi đánh giá'}
+                                      </button>
+                                      <button
+                                        className="btn-ghost"
+                                        type="button"
+                                        onClick={() => setReviewTarget(null)}
+                                      >
+                                        Hủy
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>Phí ship</span>
-                      <strong>
-                        {Number(order.shipping || order.shippingFee || 0).toLocaleString('vi-VN')}₫
-                      </strong>
-                    </div>
+                        <hr style={{ margin: '12px 0' }} />
 
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginTop: 8,
-                        fontSize: 16
-                      }}
-                    >
-                      <strong>Tổng cộng</strong>
-                      <strong>
-                        {Number(order.total || 0).toLocaleString('vi-VN')}₫
-                      </strong>
-                    </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Tạm tính</span>
+                          <strong>
+                            {Number(detail.subtotal || 0).toLocaleString('vi-VN')}₫
+                          </strong>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Phí ship</span>
+                          <strong>
+                            {Number(detail.shipping || detail.shippingFee || 0).toLocaleString('vi-VN')}₫
+                          </strong>
+                        </div>
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            marginTop: 8,
+                            fontSize: 16
+                          }}
+                        >
+                          <strong>Tổng cộng</strong>
+                          <strong>
+                            {Number(detail.total || 0).toLocaleString('vi-VN')}₫
+                          </strong>
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>

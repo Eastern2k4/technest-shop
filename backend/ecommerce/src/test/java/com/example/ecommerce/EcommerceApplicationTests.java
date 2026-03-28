@@ -340,10 +340,41 @@ class EcommerceApplicationTests {
 	}
 
 	@Test
+	void customerCanFetchOwnOrderDetailAfterCreation() throws Exception {
+		User customer = createUser("order-detail-customer@example.com", customerRole);
+		Product product = createProduct("Order Detail Keyboard", 5, "1300000");
+		Order order = createOrder(customer, product, 2, Order.OrderStatus.PENDING, Order.PaymentStatus.UNPAID);
+
+		mockMvc.perform(get("/api/orders/{id}", order.getId())
+				.header("Authorization", bearer(tokenFor(customer))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id", is(order.getId().intValue())))
+				.andExpect(jsonPath("$.itemCount", is(2)))
+				.andExpect(jsonPath("$.items[0].id", is(product.getId().intValue())))
+				.andExpect(jsonPath("$.items[0].name", is("Order Detail Keyboard")));
+	}
+
+	@Test
+	void staffCanFetchAnyOrderDetail() throws Exception {
+		User customer = createUser("order-detail-owner@example.com", customerRole);
+		User staff = createUser("order-detail-staff@example.com", staffRole);
+		Product product = createProduct("Order Detail Monitor", 4, "2500000");
+		Order order = createOrder(customer, product, 1, Order.OrderStatus.PENDING, Order.PaymentStatus.UNPAID);
+
+		mockMvc.perform(get("/api/orders/{id}", order.getId())
+				.header("Authorization", bearer(tokenFor(staff))))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id", is(order.getId().intValue())))
+				.andExpect(jsonPath("$.customerEmail", is(customer.getEmail())))
+				.andExpect(jsonPath("$.items[0].id", is(product.getId().intValue())))
+				.andExpect(jsonPath("$.items[0].name", is("Order Detail Monitor")));
+	}
+
+	@Test
 	void productSearchAppliesBrandAndPriceFiltersAtApiLevel() throws Exception {
-		createProduct("MacBook Air M3", 3, "25000000");
-		createProduct("Dell Inspiron", 4, "18000000");
-		createProduct("iPhone 15", 5, "30000000");
+		createProduct("Air M3", "Apple", 3, "25000000");
+		createProduct("Inspiron 14", "Dell", 4, "18000000");
+		createProduct("Galaxy S24", "Samsung", 5, "30000000");
 
 		mockMvc.perform(get("/api/products")
 				.param("brand", "apple")
@@ -351,7 +382,8 @@ class EcommerceApplicationTests {
 				.param("maxPrice", "26000000"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()", is(1)))
-				.andExpect(jsonPath("$[0].name", is("MacBook Air M3")));
+				.andExpect(jsonPath("$[0].name", is("Air M3")))
+				.andExpect(jsonPath("$[0].brand", is("Apple")));
 	}
 
 	@Test
@@ -813,8 +845,13 @@ class EcommerceApplicationTests {
 	}
 
 	private Product createProduct(String name, int quantity, String price) {
+		return createProduct(name, null, quantity, price);
+	}
+
+	private Product createProduct(String name, String brand, int quantity, String price) {
 		Product product = new Product();
 		product.setName(name);
+		product.setBrand(brand);
 		product.setQuantity(quantity);
 		product.setPrice(new BigDecimal(price));
 		product.setImageUrl("https://example.com/product.png");

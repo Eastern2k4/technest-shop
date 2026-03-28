@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { ProductsAPI, getErrorMessage } from '../lib/api.js'
-
-const COMMON_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Oppo', 'Vivo', 'Realme', 'Huawei', 'Sony', 'LG', 'Asus', 'Acer', 'Dell', 'HP', 'Lenovo', 'MSI', 'Razer', 'Logitech', 'JBL', 'Bose']
+import { COMMON_PRODUCT_BRANDS } from '../lib/productBrands.js'
 
 export default function Search() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -144,7 +143,7 @@ export default function Search() {
                 style={{ width: '100%', marginBottom: '16px' }}
               >
                 <option value="">Tất cả</option>
-                {COMMON_BRANDS.map(b => (
+                {COMMON_PRODUCT_BRANDS.map(b => (
                   <option key={b} value={b}>{b}</option>
                 ))}
               </select>

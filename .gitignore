@@ -31,3 +31,4 @@ coverage/
 database/.venv/
 backend/ecommerce/test/
 database/test.py
+backend/ecommerce/.data/

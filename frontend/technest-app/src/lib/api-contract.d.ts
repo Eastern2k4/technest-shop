@@ -564,6 +564,7 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+            brand?: string;
             price: number;
             imageUrl?: string;
             /** Format: int64 */
@@ -575,6 +576,7 @@ export interface components {
         };
         ProductUpsertRequest: {
             name: string;
+            brand?: string;
             price: number;
             imageUrl?: string;
             /** Format: int64 */
@@ -1027,6 +1029,7 @@ export interface operations {
                 minPrice?: string;
                 /** @description Decimal string. */
                 maxPrice?: string;
+                /** @description Explicit brand name, case-insensitive. */
                 brand?: string;
             };
             header?: never;

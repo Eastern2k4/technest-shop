@@ -14,6 +14,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Optional<Order> findByIdAndUserId(Long id, Long userId);
 
     @EntityGraph(attributePaths = { "user", "items", "items.product" })
+    @Query("select o from Order o where o.id = :id")
+    Optional<Order> findDetailById(@Param("id") Long id);
+
+    @EntityGraph(attributePaths = { "user", "items", "items.product" })
+    @Query("select o from Order o where o.id = :id and o.user.id = :userId")
+    Optional<Order> findDetailByIdAndUserId(@Param("id") Long id, @Param("userId") Long userId);
+
+    @EntityGraph(attributePaths = { "user", "items", "items.product" })
     List<Order> findByUserIdOrderByPlacedAtDesc(Long userId);
 
     List<Order> findAllByUserId(Long userId);

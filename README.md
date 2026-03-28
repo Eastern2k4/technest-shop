@@ -27,6 +27,12 @@ Contract chi tiet da duoc tach ra:
   - `frontend/technest-app/nginx.conf`
   - `docs/DEPLOYMENT.md`
 - Auth dung JWT bearer token; frontend luu auth state trong `localStorage` va da co guard khi parse loi.
+- Runtime local cua backend da doi sang `auto` mode:
+  - neu co `DB_PASSWORD`/`MYSQL_ROOT_PASSWORD` hop le thi vao MySQL that
+  - neu khong co credential hop le thi tu dong boot H2 seeded de FE khong bi rong
+- Co the ep mode ro rang:
+  - `SPRING_PROFILES_ACTIVE=mysql ./mvnw spring-boot:run`
+  - `SPRING_PROFILES_ACTIVE=h2 ./mvnw spring-boot:run`
 - FE-BE contract chinh da duoc chuan hoa qua DTO/service cho `auth`, `profile`, `user`, `product`, `order`, `review`, `statistics`.
 - OpenAPI spec versioned da co tai `docs/openapi.yaml`, frontend da co generated type artifact tai `frontend/technest-app/src/lib/api-contract.d.ts`, va API layer da duoc dua sang partial TypeScript (`src/lib/api.ts`, `src/lib/http.ts`).
 - Frontend UI layer da bo raw `/api/...` string usage; cac screen chinh di qua domain wrappers trong `src/lib/api.ts` cho `auth`, `categories`, `products`, `orders`, `reviews`, `users`, `statistics`.
@@ -50,6 +56,31 @@ Contract chi tiet da duoc tach ra:
   - frontend `npm run typecheck`: pass
   - frontend `npm run build`: pass
   - frontend `npm audit --include=dev`: `0 vulnerabilities`
+- Xac nhan ngay `2026-03-28`:
+  - backend `./mvnw test`: pass `28/28`
+  - frontend `npm run typecheck`: pass
+  - frontend `npm run build`: pass
+  - backend `SERVER_PORT=8081 ./mvnw spring-boot:run`: boot thanh cong trong `auto` mode, `/actuator/health = UP`
+  - backend `SERVER_PORT=8081 ./mvnw spring-boot:run`: `/api/products` tra `13` san pham seeded, login `customer@technest.local / TechNest@123` thanh cong
+
+## Local Runtime
+
+- Muon uu tien dung du lieu that trong MySQL:
+  - tao file `.env` tu `.env.example`
+  - dien dung `MYSQL_DATABASE` va `MYSQL_ROOT_PASSWORD`
+  - co the ep ro rang bang `APP_DATABASE_MODE=mysql`
+  - chay `cd backend/ecommerce && ./mvnw spring-boot:run`
+- Muon boot local khong phu thuoc MySQL:
+  - chay `cd backend/ecommerce && SPRING_PROFILES_ACTIVE=h2 ./mvnw spring-boot:run`
+  - local H2 duoc seed san catalog + user demo
+- Tai khoan demo local H2:
+  - `customer@technest.local / TechNest@123`
+  - `staff@technest.local / TechNest@123`
+  - `admin@technest.local / TechNest@123`
+- Neu frontend khong thay san pham hoac login vao account co san bi fail:
+  - kiem tra backend dang chay instance nao tren `:8080`
+  - kiem tra instance do dang o `Runtime database mode` nao trong log
+  - neu can vao MySQL that, dam bao `.env` co `MYSQL_ROOT_PASSWORD` hop le thay vi gia tri placeholder
 
 ## Current Contract
 
@@ -61,7 +92,7 @@ Contract chi tiet da duoc tach ra:
 ### Product
 
 - Shape chuan:
-  - `id, name, price, imageUrl, categoryId, categoryName, quantity, descriptionShort, descriptionLong`
+  - `id, name, brand, price, imageUrl, categoryId, categoryName, quantity, descriptionShort, descriptionLong`
 
 ### Order
 
@@ -113,6 +144,7 @@ Contract chi tiet da duoc tach ra:
 - FE da co `FieldError` component dung chung.
 - Checkout va staff inventory da dung chung co che field-level validation thay vi `alert()`/generic error.
 - Admin/staff order va delete flows da bo `alert()` va chuyen sang error banner/notice.
+- Actuator health khong con bi keo `DOWN` chi vi mail SMTP chua cau hinh; mail health mac dinh tat va co the bat lai bang `MAIL_HEALTH_ENABLED=true`.
 
 ### Security and Runtime
 
@@ -150,6 +182,9 @@ Contract chi tiet da duoc tach ra:
 
 - Admin orders, statistics, users, product filtering da giam fetch `findAll()` roi loc trong memory.
 - Product filtering da day xuong repository/specification.
+- `brand` da thanh field chinh thuc cua product va duoc filter bang cot rieng co index; khong con suy luan bang keyword tren `name`.
+- Runtime datasource da duoc chuan hoa theo `auto/mysql/h2` mode thay vi ngam dinh phu thuoc MySQL local va secret ngoai repo.
+- Local H2 da co seed data co kiem soat de frontend/auth/catalog chay duoc ngay ca khi MySQL local chua duoc cau hinh.
 - Flyway da co them migration index cho hotspot query cua:
   - admin orders / statistics
   - review moderation
@@ -162,7 +197,7 @@ Contract chi tiet da duoc tach ra:
    - refresh/revocation strategy
    - final cookie strategy neu can muc bao mat cao hon
    - policy ratelimit/risk-based auth day du
-3. Search theo `q/brand` van dua tren `%like%` tren `product.name`; neu data lon hon nua se can full-text/search service chuyen biet.
+3. Free-text search `q` van dua tren `%like%` tren `product.name/brand/descriptionShort`; neu data lon hon nua se can full-text/search service chuyen biet.
 4. Can chot backup/restore, monitoring, va wire deploy secret/host that truoc khi go-live that.
 5. FE da di qua domain wrappers typed o API layer, nhung page/component van la JSX; chua co typed client xuyen suot den UI state/forms.
 
@@ -171,7 +206,7 @@ Contract chi tiet da duoc tach ra:
 1. Cau hinh GitHub secret + host that, chay `Release` workflow, va smoke deploy tren VPS/host co Docker that.
 2. Bat TLS o edge va chay go-live checklist trong `docs/DEPLOYMENT.md`.
 3. Can nhac mo rong TypeScript tu wrapper layer ra cac screen/form quan trong, hoac generate typed client day du tu `docs/openapi.yaml`.
-4. Danh gia tiep search strategy cho `q/brand` neu catalog lon hon, vi B-Tree index khong giai quyet tot leading wildcard search.
+4. Danh gia tiep full-text search strategy cho `q`, vi B-Tree index khong giai quyet tot leading wildcard search.
 5. Hoan thien production auth strategy neu app co user that.
 
 ## Last Completed Change
@@ -206,6 +241,9 @@ Contract chi tiet da duoc tach ra:
 - Nang `react-router-dom` len ban patched va nang frontend toolchain len `vite@8` + `@vitejs/plugin-react@6`; `npm audit --include=dev` hien tai ve `0 vulnerabilities`.
 - Mo rong `src/lib/api.ts` thanh domain wrappers cho `categories/products/orders/reviews/users/statistics`.
 - Chuyen customer flows, admin/staff screens, va chatbot sang domain wrappers; frontend da khong con raw `/api/...` string usage trong `src/`.
+- Them `brand` thanh field chinh thuc cua product tu DB -> DTO -> OpenAPI -> generated types -> FE form/filter.
+- Them migration `V3__product_brand.sql` de backfill brand best-effort cho du lieu cu va them index `brand`, `category_id + brand + price`.
+- Chuyen admin/staff product form va category/search filter sang contract moi; chatbot cung search tren `brand`.
 - Them script deploy/preflight/smoke cho host that:
   - `scripts/deploy-preflight.sh`
   - `scripts/wait-for-url.sh`
@@ -214,5 +252,7 @@ Contract chi tiet da duoc tach ra:
 - Nang release workflow len remote preflight + retryable health wait; neu co `DEPLOY_BASE_URL` se chay them public smoke.
 - Them verify shell/preflight vao CI.
 - Xac nhan lai sau nhiep nay:
+  - backend `./mvnw test`: pass `28/28`
+  - frontend `npm run api:types`: pass
   - frontend `npm run typecheck`: pass
   - frontend `npm run build`: pass

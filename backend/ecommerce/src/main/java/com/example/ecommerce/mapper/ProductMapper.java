@@ -8,6 +8,7 @@ public class ProductMapper {
         return new ProductDTO(
                 p.getId(),
                 p.getName(),
+                p.getBrand() != null ? p.getBrand() : "",
                 p.getPrice(),
                 p.getImageUrl(),
                 p.getCategoryId(),

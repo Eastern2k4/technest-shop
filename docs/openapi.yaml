@@ -258,6 +258,7 @@ paths:
           name: brand
           schema:
             type: string
+          description: Explicit brand name, case-insensitive.
       responses:
         '200':
           description: Product list
@@ -1097,6 +1098,9 @@ components:
         name:
           type: string
           maxLength: 180
+        brand:
+          type: string
+          maxLength: 120
         price:
           type: number
         imageUrl:
@@ -1121,6 +1125,9 @@ components:
         name:
           type: string
           maxLength: 180
+        brand:
+          type: string
+          maxLength: 120
         price:
           type: number
           minimum: 0

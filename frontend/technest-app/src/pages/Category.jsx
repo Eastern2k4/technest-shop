@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCart } from '../context/CartContext.jsx'
 import { ProductsAPI, getErrorMessage } from '../lib/api.js'
+import { COMMON_PRODUCT_BRANDS } from '../lib/productBrands.js'
 
 export default function Category() {
   const { cat } = useParams()
@@ -159,13 +160,16 @@ function FiltersPanel({ filters, setFilters, onSubmit, onReset, sort, setSort })
         </div>
         <div>
           <label className="filter-label">Thương hiệu</label>
-          <input
-            type="text"
+          <select
             value={filters.brand}
             onChange={e => setFilters(prev => ({ ...prev, brand: e.target.value }))}
-            placeholder="VD: Apple"
             className="input"
-          />
+          >
+            <option value="">Tất cả</option>
+            {COMMON_PRODUCT_BRANDS.map((brand) => (
+              <option key={brand} value={brand}>{brand}</option>
+            ))}
+          </select>
         </div>
         <div>
           <label className="filter-label">Sắp xếp</label>

@@ -108,7 +108,7 @@ public class OrderService {
                 ? List.of()
                 : order.getItems().stream()
                         .map(item -> new OrderItemResponse(
-                                item.getProduct().getId(),
+                                item.getProduct() != null ? item.getProduct().getId() : null,
                                 item.getNameSnapshot(),
                                 item.getQuantity(),
                                 item.getUnitPrice()))

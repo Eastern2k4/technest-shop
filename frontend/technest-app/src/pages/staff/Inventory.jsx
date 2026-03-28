@@ -4,6 +4,7 @@ import { CategoriesAPI, ProductsAPI, getErrorMessage, getValidationErrors } from
 
 const emptyEditForm = {
   name: '',
+  brand: '',
   price: '',
   quantity: '',
   imageUrl: '',
@@ -58,6 +59,7 @@ export default function StaffInventory() {
     setFieldErrors({})
     setEditForm({
       name: product.name || '',
+      brand: product.brand || '',
       price: product.price || '',
       quantity: product.quantity || 0,
       imageUrl: product.imageUrl || '',
@@ -120,6 +122,7 @@ export default function StaffInventory() {
       const updated = {
         id: product.id,
         name: editForm.name.trim(),
+        brand: editForm.brand.trim() || '',
         price,
         imageUrl: editForm.imageUrl.trim() || '',
         categoryId: editForm.categoryId ? Number.parseInt(editForm.categoryId, 10) : product.categoryId,
@@ -189,6 +192,7 @@ export default function StaffInventory() {
                 <th align="left" style={{ width: '60px' }}>Image</th>
                 <th align="left">ID</th>
                 <th align="left">Name</th>
+                <th align="left">Brand</th>
                 <th align="left">Price</th>
                 <th align="left">Stock</th>
                 <th align="left">Category</th>
@@ -199,7 +203,7 @@ export default function StaffInventory() {
             <tbody>
               {products.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: 24, color: 'var(--muted, #666)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: 24, color: 'var(--muted, #666)' }}>
                     No products found
                   </td>
                 </tr>
@@ -235,6 +239,22 @@ export default function StaffInventory() {
                           )}
                         </td>
                         <td>{product.id}</td>
+                        <td>
+                          {isEditing ? (
+                            <div>
+                              <input
+                                type="text"
+                                value={editForm.brand}
+                                onChange={(event) => updateEditField('brand', event.target.value)}
+                                style={tableInputStyle}
+                                placeholder="Brand"
+                              />
+                              <FieldError message={fieldErrors.brand} style={fieldErrorStyle} />
+                            </div>
+                          ) : (
+                            product.brand || 'N/A'
+                          )}
+                        </td>
                         <td>
                           {isEditing ? (
                             <div>
@@ -366,7 +386,7 @@ export default function StaffInventory() {
 
                       {isEditing && (
                         <tr>
-                          <td colSpan="8" style={{ padding: 16, background: '#f9f9f9' }}>
+                          <td colSpan="9" style={{ padding: 16, background: '#f9f9f9' }}>
                             <div style={{ display: 'grid', gap: 16 }}>
                               <div>
                                 <label style={sectionLabelStyle}>

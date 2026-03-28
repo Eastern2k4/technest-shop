@@ -167,6 +167,7 @@ public class ProductController {
     public ProductDTO create(@RequestBody @Valid ProductDTO dto) {
         Product p = new Product();
         p.setName(dto.name());
+        p.setBrand(dto.brand());
         p.setPrice(dto.price());
         p.setImageUrl(dto.imageUrl());
         p.setCategoryId(dto.categoryId());
@@ -185,6 +186,7 @@ public class ProductController {
     public ProductDTO update(@PathVariable Long id, @RequestBody @Valid ProductDTO dto) {
         Product p = productService.get(id);
         p.setName(dto.name());
+        p.setBrand(dto.brand());
         p.setPrice(dto.price());
         p.setImageUrl(dto.imageUrl());
         p.setCategoryId(dto.categoryId());

@@ -61,6 +61,7 @@ FE auth state da normalize role ve uppercase khi dua vao context:
 {
   "id": 10,
   "name": "Laptop",
+  "brand": "Dell",
   "price": 22000000,
   "imageUrl": "https://...",
   "categoryId": 2,

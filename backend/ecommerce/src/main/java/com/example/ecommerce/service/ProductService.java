@@ -2,8 +2,6 @@
 package com.example.ecommerce.service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Locale;
 
 import org.springframework.data.domain.Page;
@@ -40,13 +38,18 @@ public class ProductService {
             BigDecimal maxPrice,
             String brand) {
         Specification<Product> spec = Specification.where(null);
+        String normalizedQuery = normalizeNullable(q);
+        String normalizedBrand = normalizeNullable(brand);
 
         if (categoryId != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("categoryId"), categoryId));
         }
-        if (q != null && !q.isBlank()) {
-            String pattern = "%" + q.trim().toLowerCase(Locale.ROOT) + "%";
-            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), pattern));
+        if (normalizedQuery != null) {
+            String pattern = "%" + normalizedQuery.toLowerCase(Locale.ROOT) + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                    cb.like(cb.lower(cb.coalesce(root.get("name"), "")), pattern),
+                    cb.like(cb.lower(cb.coalesce(root.get("brand"), "")), pattern),
+                    cb.like(cb.lower(cb.coalesce(root.get("descriptionShort"), "")), pattern)));
         }
         if (minPrice != null) {
             spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("price"), minPrice));
@@ -54,40 +57,12 @@ public class ProductService {
         if (maxPrice != null) {
             spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("price"), maxPrice));
         }
-        if (brand != null && !brand.isBlank()) {
-            List<String> brandKeywords = brandKeywords(brand);
-            spec = spec.and((root, query, cb) -> {
-                List<jakarta.persistence.criteria.Predicate> predicates = new ArrayList<>();
-                for (String keyword : brandKeywords) {
-                    predicates.add(cb.like(cb.lower(root.get("name")), "%" + keyword + "%"));
-                }
-                return cb.or(predicates.toArray(jakarta.persistence.criteria.Predicate[]::new));
-            });
+        if (normalizedBrand != null) {
+            String pattern = normalizedBrand.toLowerCase(Locale.ROOT);
+            spec = spec.and((root, query, cb) -> cb.equal(cb.lower(cb.coalesce(root.get("brand"), "")), pattern));
         }
 
         return spec;
-    }
-
-    private List<String> brandKeywords(String brand) {
-        String brandLower = brand.trim().toLowerCase(Locale.ROOT);
-        List<String> keywords = new ArrayList<>();
-        keywords.add(brandLower);
-
-        switch (brandLower) {
-            case "apple" -> keywords.addAll(List.of("iphone", "ipad", "macbook", "airpods", "apple watch", "imac", "mac pro", "mac mini"));
-            case "samsung" -> keywords.add("galaxy");
-            case "xiaomi" -> keywords.addAll(List.of("redmi", "mi "));
-            case "asus" -> keywords.addAll(List.of("rog", "tuf"));
-            case "hp" -> keywords.addAll(List.of("hp ", "hp spectre", "hp pavilion", "hp envy"));
-            case "lg" -> keywords.addAll(List.of("lg ", "ultragear"));
-            case "sony" -> keywords.add("wh-");
-            case "razer" -> keywords.add("blackshark");
-            case "logitech" -> keywords.add("mx master");
-            default -> {
-            }
-        }
-
-        return keywords.stream().distinct().toList();
     }
 
     /** Lấy 1 sản phẩm, 404 nếu không có */
@@ -122,6 +97,9 @@ public class ProductService {
 
     // --- Validate dữ liệu tối thiểu ---
     private void validate(Product p) {
+        p.setName(p.getName() != null ? p.getName().trim() : null);
+        p.setBrand(normalizeNullable(p.getBrand()));
+
         if (p.getName() == null || p.getName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required");
         }
@@ -134,5 +112,13 @@ public class ProductService {
         // Nếu bắt buộc categoryId:
         // if (p.getCategoryId() == null) throw new
         // ResponseStatusException(HttpStatus.BAD_REQUEST, "categoryId is required");
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

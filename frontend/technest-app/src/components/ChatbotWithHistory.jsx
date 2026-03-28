@@ -122,9 +122,10 @@ export default function ChatbotWithHistory() {
       return list
         .filter(p => {
           const name = normalizeText(p.name || '')
+          const brand = normalizeText(p.brand || '')
           const category = normalizeText(p.categoryName || '')
           const shortDesc = normalizeText(p.descriptionShort || '')
-          return name.includes(q) || category.includes(q) || shortDesc.includes(q)
+          return name.includes(q) || brand.includes(q) || category.includes(q) || shortDesc.includes(q)
         })
         .slice(0, limit)
     }

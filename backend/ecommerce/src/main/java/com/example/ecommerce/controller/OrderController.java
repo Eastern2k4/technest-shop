@@ -81,12 +81,10 @@ public class OrderController {
 
         Order order;
         if (isAdminOrStaff) {
-            // Admin / Staff xem được mọi đơn
-            order = orderRepository.findById(id)
+            order = orderRepository.findDetailById(id)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         } else {
-            // Customer chỉ xem được đơn của mình
-            order = orderRepository.findByIdAndUserId(id, user.getId())
+            order = orderRepository.findDetailByIdAndUserId(id, user.getId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
         }
 
