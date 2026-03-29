@@ -1,7 +1,8 @@
 // src/pages/admin/Dashboard.jsx
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../../lib/api.js";
+import { OrdersAPI, StatisticsAPI, getErrorMessage } from "../../lib/api.js";
+import { useAuth } from "../../context/AuthContext.jsx";
 
 function formatCurrency(value) {
   return Number(value || 0).toLocaleString("vi-VN") + "₫";
@@ -62,6 +63,7 @@ function StatCard({ tone = "green", title, value, icon, to }) {
 }
 
 export default function AdminDashboard() {
+  const { ready, isAuthenticated, role } = useAuth();
   const [stats, setStats] = useState({
     revenue: 0,
     orders: 0,
@@ -77,23 +79,13 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    // CHỈ load khi chắc chắn đã có token trong localStorage
-    const interval = setInterval(() => {
-      try {
-        const u = JSON.parse(localStorage.getItem("tn_user") || "null");
-        const token = u?.accessToken || u?.token || null;
-        if (token) {
-          clearInterval(interval);
-          loadData();
-        }
-      } catch {
-        // nếu JSON parse fail thì cứ chờ tiếp
-      }
-    }, 200);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!ready) return;
+    if (!isAuthenticated || role !== "ADMIN") {
+      setLoading(false);
+      return;
+    }
+    loadData();
+  }, [ready, isAuthenticated, role]);
 
   async function loadData() {
     try {
@@ -101,8 +93,8 @@ export default function AdminDashboard() {
       setError("");
 
       const [statsData, ordersData] = await Promise.all([
-        api("/api/admin/statistics"),
-        api("/api/orders"),
+        StatisticsAPI.summary(),
+        OrdersAPI.list(),
       ]);
 
       setStats({
@@ -124,7 +116,7 @@ export default function AdminDashboard() {
       setRecentOrders(sorted.slice(0, 5));
     } catch (err) {
       console.error("Error loading dashboard data:", err);
-      setError(err.message || "Failed to load dashboard data");
+      setError(getErrorMessage(err, "Failed to load dashboard data"));
     } finally {
       setLoading(false);
     }
